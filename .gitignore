@@ -1,0 +1,18 @@
+# Python 虚拟环境与缓存
+.venv/
+__pycache__/
+*.py[cod]
+
+# 本地配置与敏感信息
+.env
+.env.*
+
+# 本地运行数据与临时文件
+data/
+uploads/
+backups/
+logs/
+tmp/
+
+# 前端依赖（后续如新增前端工程）
+node_modules/
