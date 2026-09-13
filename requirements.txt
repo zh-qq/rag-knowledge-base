@@ -1,4 +1,6 @@
 fastapi
+faiss-cpu
+numpy
 openai
 python-multipart
 python-dotenv
