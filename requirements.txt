@@ -1,8 +1,8 @@
-fastapi
-faiss-cpu
-numpy
-openai
-python-multipart
-python-dotenv
-pypdf
-uvicorn[standard]
+fastapi==0.141.1
+faiss-cpu==1.15.0
+numpy==2.5.3
+openai==3.13.0
+python-multipart==0.0.32
+python-dotenv==1.2.3
+pypdf==6.18.1
+uvicorn[standard]==0.52.4

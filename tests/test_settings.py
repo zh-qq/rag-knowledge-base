@@ -5,6 +5,7 @@ from app.settings import (
     app_settings_from_values,
     chat_settings_from_values,
     embedding_settings_from_values,
+    rerank_settings_from_values,
 )
 
 
@@ -47,3 +48,15 @@ class EmbeddingSettingsTests(unittest.TestCase):
     def test_rejects_invalid_public_demo_flag(self) -> None:
         with self.assertRaisesRegex(SettingsError, "PUBLIC_DEMO_MODE"):
             app_settings_from_values({"PUBLIC_DEMO_MODE": "enabled"})
+
+    def test_creates_rerank_settings_from_environment_values(self) -> None:
+        settings = rerank_settings_from_values(
+            {
+                "DASHSCOPE_API_KEY": "test-key",
+                "DASHSCOPE_RERANK_BASE_URL": "https://example.com/compatible-api/v1/",
+                "RERANK_MODEL": "qwen3-rerank",
+            }
+        )
+
+        self.assertEqual(settings.base_url, "https://example.com/compatible-api/v1")
+        self.assertEqual(settings.model, "qwen3-rerank")

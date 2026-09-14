@@ -13,3 +13,23 @@ services:
         sync: false
       - key: CHAT_MODEL
         sync: false
+      - key: DASHSCOPE_RERANK_BASE_URL
+        sync: false
+      - key: RERANK_MODEL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: PUBLIC_DEMO_MODE
+        sync: false
+      - key: PUBLIC_DEMO_KNOWLEDGE_BASE_NAME
+        sync: false
+      - key: MAX_UPLOAD_BYTES
+        sync: false
+      - key: MAX_CHUNK_COUNT
+        sync: false
+      - key: MAX_QUESTION_LENGTH
+        sync: false
+      - key: EMBEDDING_BATCH_SIZE
+        sync: false

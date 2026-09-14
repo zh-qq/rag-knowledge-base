@@ -133,4 +133,18 @@ class RagEndpointTests(unittest.TestCase):
         with self.assertRaisesRegex(HTTPException, "只读模式"):
             asyncio.run(main.preview_document(upload))
         with self.assertRaisesRegex(HTTPException, "只读模式"):
+            asyncio.run(
+                main.split_uploaded_document(
+                    UploadFile(filename="guide.txt", file=BytesIO("公开资料".encode("utf-8")))
+                )
+            )
+        with self.assertRaisesRegex(HTTPException, "只读模式"):
+            asyncio.run(
+                main.index_uploaded_document(
+                    UploadFile(filename="guide.txt", file=BytesIO("公开资料".encode("utf-8")))
+                )
+            )
+        with self.assertRaisesRegex(HTTPException, "只读模式"):
+            main.select_knowledge_base(1)
+        with self.assertRaisesRegex(HTTPException, "只读模式"):
             main.clear_knowledge_base()

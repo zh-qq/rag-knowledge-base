@@ -1,6 +1,8 @@
 # RAG 知识库问答系统
 
-一个可公开体验的 RAG（检索增强生成）知识库问答应用。用户上传 TXT、Markdown 或含文字的 PDF 资料后，系统会建立向量索引，并基于检索到的原文生成带来源的回答。
+一个可公开体验的 RAG（检索增强生成）知识库问答应用。公开 Demo 固定使用不含敏感信息的样本知识库，访客可直接提问但不能修改数据；本地或非公开环境支持上传资料并建立索引。
+
+![测试](https://github.com/zh-qq/rag-knowledge-base/actions/workflows/tests.yml/badge.svg)
 
 ## 在线体验
 
@@ -25,29 +27,32 @@
 - 文本自动切分：默认每段 800 字符、重叠 100 字符。
 - 调用阿里云百炼兼容接口生成文本向量。
 - 使用 FAISS 进行余弦相似度检索。
-- 调用 `qwen-plus` 根据检索结果生成中文回答。
-- 回答附带来源文件、段落编号和相似度。
+- FAISS 先召回最多 10 条候选，再调用 `qwen3-rerank` 精排最多 3 条资料。
+- 调用 `qwen-plus` 根据精排结果生成中文回答，并以 `[1]` 至 `[3]` 标注来源。
+- 来源卡片显示文件名、从 1 开始的段落编号、相关度与命中原文摘要。
 - 索引会保存在本地，服务重启时自动恢复。
-- 网页端支持建立索引、问答和清空知识库。
+- 非公开环境支持建立索引、问答和清空知识库；公开 Demo 为只读模式。
 - 配置 Supabase 后，支持创建、切换多个云端知识库，并持久保存资料与向量。
 
 ## 工作流程
 
-```text
-上传资料
-  ↓
-文档读取 → 文本切分 → 文档向量化 → FAISS 索引
-                                           ↓
-用户问题 → 问题向量化 → 相似度检索 → qwen-plus 生成回答
-                                           ↓
-                                      回答 + 来源引用
+```mermaid
+flowchart LR
+    A[文档] --> B[读取与切分]
+    B --> C[批量向量化]
+    C --> D[FAISS 索引]
+    Q[用户问题] --> E[问题向量化]
+    E --> F[FAISS Top-10 召回]
+    D --> F
+    F --> G[qwen3-rerank Top-3]
+    G --> H[qwen-plus 回答与编号引用]
 ```
 
 ## 技术栈
 
 - 后端：Python、FastAPI、Uvicorn
 - 检索：FAISS、NumPy
-- 云端模型：阿里云百炼兼容 API、`text-embedding-v2`、`qwen-plus`
+- 云端模型：阿里云百炼兼容 API、`text-embedding-v2`、`qwen3-rerank`、`qwen-plus`
 - 前端：原生 HTML、CSS、JavaScript
 - 部署：Docker、Render、GitHub
 
@@ -72,6 +77,8 @@ DASHSCOPE_API_KEY=<你的百炼 API Key>
 DASHSCOPE_BASE_URL=<你的百炼兼容接口地址>
 EMBEDDING_MODEL=text-embedding-v2
 CHAT_MODEL=qwen-plus
+DASHSCOPE_RERANK_BASE_URL=https://<你的业务空间>.cn-beijing.maas.aliyuncs.com/compatible-api/v1
+RERANK_MODEL=qwen3-rerank
 ```
 
 `.env` 已被 Git 忽略，禁止提交或分享。
@@ -89,7 +96,22 @@ SUPABASE_SECRET_KEY=<你的 Supabase Secret Key>
 
 `SUPABASE_SECRET_KEY` 只能放在 FastAPI 与 Render 的环境变量中，绝不能提交到 GitHub 或写进浏览器代码。未配置这两个变量时，项目仍使用本地单知识库模式。
 
-### 4. 启动服务
+### 4. 公开 Demo 配置
+
+公开部署前，先在非公开模式下创建名为 `公开演示知识库` 的云端知识库，并导入仓库中的 [`demo/campus-guide.md`](demo/campus-guide.md)。确认可正常问答后，在 Render 环境变量中设置：
+
+```text
+PUBLIC_DEMO_MODE=true
+PUBLIC_DEMO_KNOWLEDGE_BASE_NAME=公开演示知识库
+MAX_UPLOAD_BYTES=2097152
+MAX_CHUNK_COUNT=200
+MAX_QUESTION_LENGTH=1000
+EMBEDDING_BATCH_SIZE=32
+```
+
+公开模式下，服务器会拒绝创建、切换、上传、预览、切分、索引和清空接口，访客无法修改 Supabase 中的公共资料。
+
+### 5. 启动服务
 
 ```powershell
 uvicorn app.main:app --reload
@@ -102,34 +124,41 @@ uvicorn app.main:app --reload
 | 接口 | 用途 |
 | --- | --- |
 | `GET /health` | 服务健康检查 |
+| `GET /knowledge-bases` | 列出可访问知识库；公开模式仅返回样本库 |
+| `POST /knowledge-bases` | 创建云端知识库；公开模式禁用 |
+| `POST /knowledge-bases/{id}/select` | 切换知识库；公开模式禁用 |
 | `POST /documents/preview` | 预览上传文档 |
 | `POST /documents/chunks` | 查看文本切分结果 |
 | `POST /documents/index` | 上传并建立知识库索引 |
-| `GET /search` | 检索相关文本段落 |
-| `POST /ask` | 基于知识库回答问题并返回来源 |
+| `GET /search?query=...&knowledge_base_id=...` | 检索相关文本段落；知识库 ID 可省略 |
+| `POST /ask` | 基于知识库回答问题、精排并返回编号来源 |
 | `DELETE /knowledge-base` | 清空当前知识库 |
 
 ## 检索效果评估
 
-项目内置 4 条固定中文资料和 4 个对应问题，用于验证向量检索是否把预期来源返回到 Top-3。评测输出两个指标：
+评测集位于 [`evals/retrieval-cases.json`](evals/retrieval-cases.json)，包含 10 份公开校园指南资料、25 条有答案问题和 5 条无答案问题。评测会比较“仅 FAISS”和“FAISS + Rerank”，并输出：
 
 - `Recall@3`：预期来源出现在前 3 个结果中的问题比例。
 - `MRR@3`：预期来源排名的平均倒数，越接近 1 表示越靠前。
+- 逐题的 FAISS 与 Rerank 命中排名；无答案题单独列出，不计入两项指标分母。
 
-运行真实评测会调用两次云端向量接口，但不会写入本地知识库：
+运行真实评测会调用百炼向量与重排序接口，但不会写入本地或 Supabase 知识库：
 
 ```powershell
 .\.venv\Scripts\python.exe -m app.retrieval_evaluation
 ```
 
-### 最近一次真实评测
+真实评测结果会在首次配置 `qwen3-rerank` 并成功运行后填写；在此之前不预先声明效果指标。
 
-2026-09-14 使用配置的 `text-embedding-v2` 对内置 4 条资料和 4 个问题运行评测，结果为：
+## 测试与 CI
 
-- `Recall@3 = 1.0000`
-- `MRR@3 = 1.0000`
+项目目前包含 52 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
 
-这组数据用于检索回归检查，样本规模很小，不能代表真实业务场景的通用准确率。
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -q
+```
+
+GitHub Actions 会在每次推送与 Pull Request 时，使用 Python 3.13 安装锁定依赖并运行相同测试。
 
 ## 本地知识库文件
 
@@ -150,14 +179,13 @@ uvicorn app.main:app --reload
 
 1. 登录 [Render Blueprints](https://dashboard.render.com/blueprints)。
 2. 连接 GitHub 仓库 `zh-qq/rag-knowledge-base`。
-3. Render 会提示填写 `DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`CHAT_MODEL` 四个环境变量。
+3. Render 会提示填写 `DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`CHAT_MODEL`、`DASHSCOPE_RERANK_BASE_URL` 与 `RERANK_MODEL`。
 4. 保持免费计划，创建服务后等待构建完成。
-5. 若启用 Supabase，在 Render 的 Environment 中额外设置 `SUPABASE_URL` 和 `SUPABASE_SECRET_KEY`。
+5. 启用 Supabase 时，设置 `SUPABASE_URL` 和 `SUPABASE_SECRET_KEY`；公开上线前按“公开 Demo 配置”填写只读模式变量。
 
-## 当前限制与下一步
+## 当前限制
 
 - 支持 TXT、Markdown 与含文字的 PDF；暂未支持 Word，也不支持需要 OCR 的扫描型 PDF。
 - 未配置 Supabase 时，当前索引保存在服务本地；Render 免费实例重启或休眠后会丢失已上传资料。
 - 已配置 Supabase 时可以持久保存多个知识库；当前仍未提供用户登录，因此线上 Demo 的知识库并非按用户隔离。
-
-下一阶段将考虑：持久化存储、多知识库隔离和更完整的异常提示。
+- 公开 Demo 通过只读模式保护共享样本库；如需个人或多人隔离，仍需要补充用户登录与权限设计。
