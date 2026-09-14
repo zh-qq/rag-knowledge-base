@@ -1,6 +1,6 @@
 import unittest
 
-from app.settings import SettingsError, embedding_settings_from_values
+from app.settings import SettingsError, chat_settings_from_values, embedding_settings_from_values
 
 
 class EmbeddingSettingsTests(unittest.TestCase):
@@ -19,3 +19,14 @@ class EmbeddingSettingsTests(unittest.TestCase):
     def test_reports_missing_settings_without_exposing_values(self) -> None:
         with self.assertRaisesRegex(SettingsError, "DASHSCOPE_API_KEY"):
             embedding_settings_from_values({})
+
+    def test_creates_chat_settings_from_complete_values(self) -> None:
+        settings = chat_settings_from_values(
+            {
+                "DASHSCOPE_API_KEY": "test-key",
+                "DASHSCOPE_BASE_URL": "https://example.com/v1",
+                "CHAT_MODEL": "qwen-plus",
+            }
+        )
+
+        self.assertEqual(settings.model, "qwen-plus")

@@ -1,14 +1,21 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from pydantic import BaseModel
 
+from app.chat_client import ChatError, answer_from_context
 from app.document_reader import DocumentReadError, read_text_document
 from app.embedding_client import EmbeddingError, embed_texts
-from app.settings import SettingsError, load_embedding_settings
+from app.settings import SettingsError, load_chat_settings, load_embedding_settings
 from app.text_chunker import DocumentChunk, split_document
 from app.vector_store import SearchResult, VectorStore, VectorStoreError
 
 app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
 vector_store: VectorStore | None = None
+
+
+class AskRequest(BaseModel):
+    question: str
+    limit: int = 3
 
 
 @app.get("/health")
@@ -130,4 +137,33 @@ def serialize_search_result(result: SearchResult) -> dict[str, str | int | float
         "chunk_index": result.chunk_index,
         "content": result.content,
         "score": result.score,
+    }
+
+
+@app.post("/ask")
+def ask_question(request: AskRequest) -> dict:
+    """检索相关资料后，调用对话模型生成带来源的回答。"""
+    if not request.question.strip():
+        raise HTTPException(status_code=400, detail="问题不能为空")
+    if request.limit <= 0 or request.limit > 10:
+        raise HTTPException(status_code=400, detail="返回数量必须在 1 到 10 之间")
+    if vector_store is None:
+        raise HTTPException(status_code=400, detail="尚未建立知识库索引")
+
+    try:
+        query_vector = embed_texts([request.question], load_embedding_settings())[0]
+        results = vector_store.search(query_vector, request.limit)
+        answer = answer_from_context(request.question, results, load_chat_settings())
+    except SettingsError as error:
+        raise HTTPException(status_code=500, detail="云端模型配置不完整") from error
+    except EmbeddingError as error:
+        raise HTTPException(status_code=502, detail="云端向量服务调用失败") from error
+    except ChatError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    except VectorStoreError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
+
+    return {
+        "answer": answer,
+        "sources": [serialize_search_result(result) for result in results],
     }
