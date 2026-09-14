@@ -121,12 +121,16 @@ button:disabled { cursor: not-allowed; }
   .chat-panel { min-height: 580px; }
 }
 @media (max-width: 560px) {
+  body { overflow-x: hidden; }
   .topbar { height: 58px; padding: 0 18px; }
   .brand { font-size: 20px; }
   .service-state { font-size: 12px; }
+  .workspace { display: block; width: 100%; min-width: 0; }
+  .documents-panel, .chat-panel { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; }
   .documents-panel { padding: 22px; }
-  .knowledge-base-controls { grid-template-columns: 1fr auto; }
-  .knowledge-base-controls select { grid-column: 1 / -1; }
+  .knowledge-base-controls { grid-template-columns: minmax(0, 1fr); }
+  .knowledge-base-controls select { grid-column: auto; }
+  .knowledge-base-controls > * { width: 100%; min-width: 0; }
   .chat-heading, .conversation { padding-left: 20px; padding-right: 20px; }
   .question-form { padding: 14px 20px 20px; }
   .message { max-width: 94%; }
