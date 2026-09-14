@@ -26,7 +26,7 @@ class ChatSettings:
 @dataclass(frozen=True)
 class SupabaseSettings:
     url: str
-    service_role_key: str
+    secret_key: str
 
 
 def load_embedding_settings() -> EmbeddingSettings:
@@ -84,7 +84,7 @@ def chat_settings_from_values(values: Mapping[str, str]) -> ChatSettings:
 def supabase_settings_from_values(values: Mapping[str, str]) -> SupabaseSettings:
     required_keys = {
         "SUPABASE_URL": "url",
-        "SUPABASE_SERVICE_ROLE_KEY": "service_role_key",
+        "SUPABASE_SECRET_KEY": "secret_key",
     }
     missing_keys = [key for key in required_keys if not values.get(key, "").strip()]
     if missing_keys:
@@ -92,5 +92,5 @@ def supabase_settings_from_values(values: Mapping[str, str]) -> SupabaseSettings
 
     return SupabaseSettings(
         url=values["SUPABASE_URL"].strip(),
-        service_role_key=values["SUPABASE_SERVICE_ROLE_KEY"].strip(),
+        secret_key=values["SUPABASE_SECRET_KEY"].strip(),
     )

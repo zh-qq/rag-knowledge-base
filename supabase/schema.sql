@@ -1,5 +1,5 @@
 -- 在 Supabase Dashboard 的 SQL Editor 中执行本文件。
--- 浏览器不直接访问这些表；服务端使用 SUPABASE_SERVICE_ROLE_KEY 访问。
+-- 浏览器不直接访问这些表；服务端使用 SUPABASE_SECRET_KEY 访问。
 
 create table if not exists public.knowledge_bases (
   id bigint generated always as identity primary key,

@@ -27,7 +27,7 @@ class SupabaseKnowledgeBaseRepository:
 
     def __init__(self, settings: SupabaseSettings) -> None:
         self._base_url = settings.url.rstrip("/") + "/rest/v1"
-        self._api_key = settings.service_role_key
+        self._api_key = settings.secret_key
 
     def list_knowledge_bases(self) -> list[KnowledgeBase]:
         rows = self._request("GET", "knowledge_bases", {"select": "id,name", "order": "id.asc"})

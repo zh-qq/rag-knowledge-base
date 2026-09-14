@@ -84,10 +84,10 @@ CHAT_MODEL=qwen-plus
 
 ```text
 SUPABASE_URL=https://<你的项目标识>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<你的服务端密钥>
+SUPABASE_SECRET_KEY=<你的 Supabase Secret Key>
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` 只能放在 FastAPI 与 Render 的环境变量中，绝不能提交到 GitHub 或写进浏览器代码。未配置这两个变量时，项目仍使用本地单知识库模式。
+`SUPABASE_SECRET_KEY` 只能放在 FastAPI 与 Render 的环境变量中，绝不能提交到 GitHub 或写进浏览器代码。未配置这两个变量时，项目仍使用本地单知识库模式。
 
 ### 4. 启动服务
 
@@ -152,7 +152,7 @@ uvicorn app.main:app --reload
 2. 连接 GitHub 仓库 `zh-qq/rag-knowledge-base`。
 3. Render 会提示填写 `DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`CHAT_MODEL` 四个环境变量。
 4. 保持免费计划，创建服务后等待构建完成。
-5. 若启用 Supabase，在 Render 的 Environment 中额外设置 `SUPABASE_URL` 和 `SUPABASE_SERVICE_ROLE_KEY`。
+5. 若启用 Supabase，在 Render 的 Environment 中额外设置 `SUPABASE_URL` 和 `SUPABASE_SECRET_KEY`。
 
 ## 当前限制与下一步
 

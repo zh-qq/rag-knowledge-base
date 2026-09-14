@@ -11,13 +11,13 @@ class CloudKnowledgeBaseTests(unittest.TestCase):
         self.settings = supabase_settings_from_values(
             {
                 "SUPABASE_URL": "https://example.supabase.co",
-                "SUPABASE_SERVICE_ROLE_KEY": "test-service-role-key",
+                "SUPABASE_SECRET_KEY": "test-secret-key",
             }
         )
         self.repository = SupabaseKnowledgeBaseRepository(self.settings)
 
     def test_requires_complete_supabase_settings(self) -> None:
-        with self.assertRaisesRegex(SettingsError, "SUPABASE_SERVICE_ROLE_KEY"):
+        with self.assertRaisesRegex(SettingsError, "SUPABASE_SECRET_KEY"):
             supabase_settings_from_values({"SUPABASE_URL": "https://example.supabase.co"})
 
     def test_rebuilds_vector_store_for_one_knowledge_base(self) -> None:
