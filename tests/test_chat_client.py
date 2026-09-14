@@ -29,6 +29,10 @@ class ChatClientTests(unittest.TestCase):
         call_arguments = openai_client.return_value.chat.completions.create.call_args.kwargs
         self.assertEqual(call_arguments["model"], "qwen-plus")
         self.assertIn("guide.md", call_arguments["messages"][1]["content"])
+        self.assertIn("[1]", call_arguments["messages"][1]["content"])
+        self.assertIn("必须标注对应资料编号", call_arguments["messages"][0]["content"])
+        self.assertIn("[1]", call_arguments["messages"][1]["content"])
+        self.assertIn("必须标注对应资料编号", call_arguments["messages"][0]["content"])
 
     def test_rejects_empty_context(self) -> None:
         with self.assertRaisesRegex(ChatError, "没有可用于回答的资料"):

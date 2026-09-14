@@ -21,6 +21,7 @@ let selectedFile = null;
 let hasIndex = false;
 let cloudMode = false;
 let activeKnowledgeBaseId = null;
+let publicDemoMode = false;
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -28,12 +29,12 @@ function formatFileSize(bytes) {
 }
 
 function setButtonLoading(button, label, loading) {
-  button.disabled = loading || (button === indexButton && (!selectedFile || (cloudMode && activeKnowledgeBaseId === null)));
+  button.disabled = loading || publicDemoMode || (button === indexButton && (!selectedFile || (cloudMode && activeKnowledgeBaseId === null)));
   button.querySelector("span")?.replaceChildren(document.createTextNode(label));
 }
 
 function updateIndexButton() {
-  indexButton.disabled = !selectedFile || (cloudMode && activeKnowledgeBaseId === null);
+  indexButton.disabled = publicDemoMode || !selectedFile || (cloudMode && activeKnowledgeBaseId === null);
 }
 
 function showIndexResult(message, isError = false) {
@@ -46,7 +47,7 @@ function setQuestionAvailability(enabled) {
   hasIndex = enabled;
   questionInput.disabled = !enabled;
   sendButton.disabled = !enabled;
-  clearButton.disabled = !enabled;
+  clearButton.disabled = publicDemoMode || !enabled;
 }
 
 function resetSelectedFile() {
@@ -68,6 +69,10 @@ function resetConversation() {
 }
 
 function selectFile(file) {
+  if (publicDemoMode) {
+    showIndexResult("公开 Demo 为只读模式，不能上传资料。", true);
+    return;
+  }
   if (!file) return;
   const name = file.name.toLowerCase();
   if (!name.endsWith(".txt") && !name.endsWith(".md") && !name.endsWith(".pdf")) {
@@ -106,8 +111,8 @@ async function loadKnowledgeBases() {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || "读取知识库列表失败");
     cloudMode = payload.mode === "cloud";
-    knowledgeBaseName.disabled = !cloudMode;
-    createKnowledgeBaseButton.disabled = !cloudMode;
+    publicDemoMode = payload.public_demo_mode === true;
+    setPublicDemoMode(publicDemoMode);
     knowledgeBaseSelect.replaceChildren();
     const knowledgeBases = payload.knowledge_bases || [];
     if (!knowledgeBases.length) {
@@ -119,9 +124,21 @@ async function loadKnowledgeBases() {
       return;
     }
     knowledgeBases.forEach((item) => knowledgeBaseSelect.append(new Option(item.name, String(item.id))));
-    knowledgeBaseSelect.disabled = false;
-    knowledgeBaseHint.textContent = cloudMode ? "云端模式：资料会保存到当前选择的知识库。" : "本地模式：配置 Supabase 后可创建多个云端知识库。";
+    knowledgeBaseSelect.disabled = publicDemoMode;
+    knowledgeBaseHint.textContent = publicDemoMode
+      ? "公开 Demo 为只读模式，正在使用固定的公开演示知识库。"
+      : (cloudMode ? "云端模式：资料会保存到当前选择的知识库。" : "本地模式：配置 Supabase 后可创建多个云端知识库。");
     const selectedId = payload.active_knowledge_base_id ?? knowledgeBases[0].id;
+    if (publicDemoMode) {
+      activeKnowledgeBaseId = Number(selectedId);
+      knowledgeBaseSelect.value = String(activeKnowledgeBaseId);
+      const statusResponse = await fetch("/knowledge-base/status");
+      const status = await statusResponse.json();
+      if (!statusResponse.ok) throw new Error(status.detail || "读取知识库状态失败");
+      setQuestionAvailability(status.indexed_chunk_count > 0);
+      showIndexResult("公开 Demo 为只读模式：可以直接向样本知识库提问。");
+      return;
+    }
     await activateKnowledgeBase(selectedId, false);
   } catch (error) {
     knowledgeBaseHint.textContent = "知识库列表读取失败。";
@@ -134,6 +151,7 @@ knowledgeBaseSelect.addEventListener("change", () => {
 });
 
 createKnowledgeBaseButton.addEventListener("click", async () => {
+  if (publicDemoMode) return;
   const name = knowledgeBaseName.value.trim();
   if (!name) {
     showIndexResult("请输入新知识库名称。", true);
@@ -174,7 +192,11 @@ function appendAnswer(question, payload) {
   const sources = payload.sources.map((source) => `
     <div class="source-item">
       ${icon("file")}
-      <div><strong>${escapeHtml(source.source_file)}</strong><span>段落 ${source.chunk_index} · 相似度 ${Number(source.score).toFixed(2)}</span></div>
+      <div>
+        <strong>[${source.citation_index}] ${escapeHtml(source.source_file)}</strong>
+        <span>段落 ${Number(source.chunk_index) + 1} · 相关度 ${Number(source.score).toFixed(2)}</span>
+        <small>${escapeHtml(source.content.slice(0, 120))}${source.content.length > 120 ? "…" : ""}</small>
+      </div>
     </div>`).join("");
   answerNode.innerHTML = `
     <h2 class="answer-title">${icon("book")}<span>回答</span></h2>
@@ -192,6 +214,18 @@ function appendError(message) {
   node.textContent = message;
   conversation.append(node);
   conversation.scrollTop = conversation.scrollHeight;
+}
+
+function setPublicDemoMode(enabled) {
+  publicDemoMode = enabled;
+  knowledgeBaseName.disabled = enabled || !cloudMode;
+  createKnowledgeBaseButton.disabled = enabled || !cloudMode;
+  knowledgeBaseName.hidden = enabled;
+  createKnowledgeBaseButton.hidden = enabled;
+  dropZone.hidden = enabled;
+  fileCard.hidden = enabled;
+  indexButton.parentElement.hidden = enabled;
+  if (enabled) resetSelectedFile();
 }
 
 function escapeHtml(value) {
@@ -212,17 +246,21 @@ async function checkService() {
 
 fileInput.addEventListener("change", (event) => selectFile(event.target.files[0]));
 ["dragenter", "dragover"].forEach((eventName) => dropZone.addEventListener(eventName, (event) => {
+  if (publicDemoMode) return;
   event.preventDefault();
   dropZone.classList.add("is-dragging");
 }));
 ["dragleave", "drop"].forEach((eventName) => dropZone.addEventListener(eventName, (event) => {
+  if (publicDemoMode) return;
   event.preventDefault();
   dropZone.classList.remove("is-dragging");
 }));
-dropZone.addEventListener("drop", (event) => selectFile(event.dataTransfer.files[0]));
+dropZone.addEventListener("drop", (event) => {
+  if (!publicDemoMode) selectFile(event.dataTransfer.files[0]);
+});
 
 indexButton.addEventListener("click", async () => {
-  if (!selectedFile) return;
+  if (publicDemoMode || !selectedFile) return;
   setButtonLoading(indexButton, "正在建立索引…", true);
   const formData = new FormData();
   formData.append("file", selectedFile);
@@ -242,6 +280,7 @@ indexButton.addEventListener("click", async () => {
 });
 
 clearButton.addEventListener("click", async () => {
+  if (publicDemoMode) return;
   if (!window.confirm("确定清空当前知识库吗？当前知识库中的资料和索引将无法恢复。")) return;
   clearButton.disabled = true;
   try {

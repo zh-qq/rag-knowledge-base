@@ -20,13 +20,13 @@ def answer_from_context(
         raise ChatError("没有可用于回答的资料")
 
     context = "\n\n".join(
-        f"【来源：{result.source_file}，段落 {result.chunk_index}】\n{result.content}"
-        for result in results
+        f"[{index}]【来源：{result.source_file}，段落 {result.chunk_index + 1}】\n{result.content}"
+        for index, result in enumerate(results, start=1)
     )
     messages = [
         {
             "role": "system",
-            "content": "你是知识库问答助手。只能依据提供的资料回答；资料不足时直接说明资料未提供答案。请用简洁中文回答。",
+            "content": "你是知识库问答助手。只能依据提供的资料回答；资料不足时直接说明资料未提供答案。请用简洁中文回答。每个具体事实后必须标注对应资料编号，例如 [1]；不得引用未提供的编号。",
         },
         {
             "role": "user",

@@ -33,6 +33,17 @@ class SupabaseKnowledgeBaseRepository:
         rows = self._request("GET", "knowledge_bases", {"select": "id,name", "order": "id.asc"})
         return [KnowledgeBase(id=int(row["id"]), name=str(row["name"])) for row in rows]
 
+    def get_knowledge_base_by_name(self, name: str) -> KnowledgeBase | None:
+        """按唯一名称读取知识库，供公开演示模式固定加载。"""
+        rows = self._request(
+            "GET",
+            "knowledge_bases",
+            {"select": "id,name", "name": f"eq.{name}", "limit": "1"},
+        )
+        if not rows:
+            return None
+        return KnowledgeBase(id=int(rows[0]["id"]), name=str(rows[0]["name"]))
+
     def create_knowledge_base(self, name: str) -> KnowledgeBase:
         rows = self._request(
             "POST",

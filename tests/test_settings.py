@@ -1,6 +1,11 @@
 import unittest
 
-from app.settings import SettingsError, chat_settings_from_values, embedding_settings_from_values
+from app.settings import (
+    SettingsError,
+    app_settings_from_values,
+    chat_settings_from_values,
+    embedding_settings_from_values,
+)
 
 
 class EmbeddingSettingsTests(unittest.TestCase):
@@ -30,3 +35,15 @@ class EmbeddingSettingsTests(unittest.TestCase):
         )
 
         self.assertEqual(settings.model, "qwen-plus")
+
+    def test_uses_safe_public_demo_defaults(self) -> None:
+        settings = app_settings_from_values({})
+
+        self.assertFalse(settings.public_demo_mode)
+        self.assertEqual(settings.max_upload_bytes, 2 * 1024 * 1024)
+        self.assertEqual(settings.max_chunk_count, 200)
+        self.assertEqual(settings.max_question_length, 1000)
+
+    def test_rejects_invalid_public_demo_flag(self) -> None:
+        with self.assertRaisesRegex(SettingsError, "PUBLIC_DEMO_MODE"):
+            app_settings_from_values({"PUBLIC_DEMO_MODE": "enabled"})
