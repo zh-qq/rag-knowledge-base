@@ -31,6 +31,12 @@ function showIndexResult(message, isError = false) {
   indexResult.classList.toggle("is-error", isError);
 }
 
+function setQuestionAvailability(enabled) {
+  hasIndex = enabled;
+  questionInput.disabled = !enabled;
+  sendButton.disabled = !enabled;
+}
+
 function selectFile(file) {
   if (!file) return;
   const name = file.name.toLowerCase();
@@ -118,9 +124,7 @@ indexButton.addEventListener("click", async () => {
     const response = await fetch("/documents/index", { method: "POST", body: formData });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || "建立索引失败");
-    hasIndex = true;
-    questionInput.disabled = false;
-    sendButton.disabled = false;
+    setQuestionAvailability(true);
     fileMeta.textContent = `${formatFileSize(selectedFile.size)} · 已建立 ${payload.chunk_count} 个段落`;
     showIndexResult(`索引完成：${payload.file_name} 已加入知识库，当前共有 ${payload.indexed_chunk_count} 个段落。`);
   } catch (error) {
@@ -146,10 +150,24 @@ questionForm.addEventListener("submit", async (event) => {
     appendAnswer(question, payload);
     questionInput.value = "";
   } catch (error) {
-    appendError(error.message || "问答失败，请稍后重试。。");
+    appendError(error.message || "问答失败，请稍后重试。");
   } finally {
     sendButton.disabled = false;
   }
 });
 
 checkService();
+
+async function loadKnowledgeBaseStatus() {
+  try {
+    const response = await fetch("/knowledge-base/status");
+    const payload = await response.json();
+    if (!response.ok || payload.indexed_chunk_count <= 0) return;
+    setQuestionAvailability(true);
+    showIndexResult(`已恢复本地知识库：当前共有 ${payload.indexed_chunk_count} 个段落。`);
+  } catch {
+    // 知识库状态读取失败时，仍允许用户重新上传资料建立索引。
+  }
+}
+
+loadKnowledgeBaseStatus();

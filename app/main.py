@@ -15,12 +15,22 @@ app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
 vector_store: VectorStore | None = None
 STATIC_DIR = Path(__file__).parent / "static"
+DATA_DIR = Path(__file__).parent.parent / "data"
+INDEX_PATH = DATA_DIR / "knowledge_base.faiss"
+METADATA_PATH = DATA_DIR / "chunks.json"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 class AskRequest(BaseModel):
     question: str
     limit: int = 3
+
+
+@app.on_event("startup")
+def restore_vector_store() -> None:
+    """服务启动时恢复此前已保存的知识库。"""
+    global vector_store
+    vector_store = VectorStore.load(INDEX_PATH, METADATA_PATH)
 
 
 @app.get("/", include_in_schema=False)
@@ -31,6 +41,12 @@ def serve_app() -> FileResponse:
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok", "message": "服务正常"}
+
+
+@app.get("/knowledge-base/status")
+def knowledge_base_status() -> dict[str, int]:
+    """返回当前已加载的知识库段落数量。"""
+    return {"indexed_chunk_count": vector_store.count if vector_store else 0}
 
 
 async def read_uploaded_text(file: UploadFile) -> tuple[str, str]:
@@ -92,6 +108,11 @@ def add_to_vector_store(chunks: list[DocumentChunk], vectors: list[list[float]])
     return vector_store
 
 
+def save_vector_store(store: VectorStore) -> None:
+    """保存索引，供下次服务启动时自动恢复。"""
+    store.save(INDEX_PATH, METADATA_PATH)
+
+
 @app.post("/documents/index")
 async def index_uploaded_document(file: UploadFile = File(...)) -> dict[str, str | int]:
     """上传文档、切分文本并写入内存向量索引。"""
@@ -101,6 +122,7 @@ async def index_uploaded_document(file: UploadFile = File(...)) -> dict[str, str
     try:
         vectors = embed_texts([chunk.content for chunk in chunks], load_embedding_settings())
         store = add_to_vector_store(chunks, vectors)
+        save_vector_store(store)
     except SettingsError as error:
         raise HTTPException(status_code=500, detail="云端向量配置不完整") from error
     except EmbeddingError as error:

@@ -27,6 +27,7 @@ class RagEndpointTests(unittest.TestCase):
         with (
             patch("app.main.load_embedding_settings"),
             patch("app.main.embed_texts", side_effect=[[[1.0, 0.0]], [[0.9, 0.1]]]),
+            patch("app.main.save_vector_store"),
         ):
             index_result = asyncio.run(main.index_uploaded_document(upload))
             search_result = main.search_documents("网络无法连接", limit=1)
@@ -35,6 +36,14 @@ class RagEndpointTests(unittest.TestCase):
         self.assertEqual(index_result["indexed_chunk_count"], 1)
         self.assertEqual(search_result["results"][0]["source_file"], "network.txt")
         self.assertEqual(search_result["results"][0]["chunk_index"], 0)
+
+    def test_returns_current_knowledge_base_status(self) -> None:
+        main.vector_store = VectorStore(dimension=2)
+        main.vector_store.add([DocumentChunk("network.txt", 0, "校园网络报修流程")], [[1.0, 0.0]])
+
+        result = main.knowledge_base_status()
+
+        self.assertEqual(result["indexed_chunk_count"], 1)
 
     def test_rejects_search_before_any_document_is_indexed(self) -> None:
         with self.assertRaisesRegex(Exception, "尚未建立知识库索引"):
