@@ -21,10 +21,10 @@ class DocumentPreviewTests(unittest.TestCase):
         self.assertEqual(result["preview"], "图书馆开放至晚上十点。")
 
     def test_returns_clear_error_for_unsupported_file(self) -> None:
-        upload = UploadFile(filename="notice.pdf", file=BytesIO(b"content"))
+        upload = UploadFile(filename="notice.docx", file=BytesIO(b"content"))
 
         with self.assertRaises(HTTPException) as context:
             asyncio.run(preview_document(upload))
 
         self.assertEqual(context.exception.status_code, 400)
-        self.assertEqual(context.exception.detail, "暂只支持 .txt 和 .md 文件")
+        self.assertEqual(context.exception.detail, "暂只支持 .txt、.md 和 .pdf 文件")

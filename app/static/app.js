@@ -60,8 +60,8 @@ function resetConversation() {
 function selectFile(file) {
   if (!file) return;
   const name = file.name.toLowerCase();
-  if (!name.endsWith(".txt") && !name.endsWith(".md")) {
-    showIndexResult("暂只支持 TXT 与 Markdown 文件。", true);
+  if (!name.endsWith(".txt") && !name.endsWith(".md") && !name.endsWith(".pdf")) {
+    showIndexResult("暂只支持 TXT、Markdown 与 PDF 文件。", true);
     return;
   }
   selectedFile = file;
