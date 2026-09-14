@@ -1,6 +1,7 @@
 """用于回归检查的检索评估：运行时使用真实向量服务，测试时不调用云端。"""
 
 import json
+import sys
 from dataclasses import asdict, dataclass
 
 from app.embedding_client import embed_texts
@@ -117,6 +118,7 @@ def run_cloud_evaluation(limit: int = 3) -> RetrievalEvaluationReport:
 
 
 def main() -> None:
+    sys.stdout.reconfigure(encoding="utf-8")
     report = run_cloud_evaluation()
     print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
 

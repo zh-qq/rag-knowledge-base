@@ -98,6 +98,15 @@ uvicorn app.main:app --reload
 .\.venv\Scripts\python.exe -m app.retrieval_evaluation
 ```
 
+### 最近一次真实评测
+
+2026-09-14 使用配置的 `text-embedding-v2` 对内置 4 条资料和 4 个问题运行评测，结果为：
+
+- `Recall@3 = 1.0000`
+- `MRR@3 = 1.0000`
+
+这组数据用于检索回归检查，样本规模很小，不能代表真实业务场景的通用准确率。
+
 ## 本地知识库文件
 
 首次建立索引后，系统会生成：
