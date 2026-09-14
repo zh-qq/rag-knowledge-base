@@ -40,6 +40,18 @@
 
 当前版本将索引保存在服务本地 `data/`。因此在线演示可以让用户上传资料后立即问答，但免费云端实例重启后可能需要重新上传资料；若要长期保存资料，下一阶段需要接入云端持久化存储。
 
+### Render 免费演示部署
+
+仓库根目录的 `render.yaml` 已配置为免费的 Docker Web Service：
+
+1. 登录 [Render Dashboard](https://dashboard.render.com/blueprints)，选择创建 Blueprint。
+2. 连接 GitHub 仓库 `zh-qq/rag-knowledge-base`。
+3. Render 会要求填写四个标记为密钥的环境变量。请从本机 `.env` 复制对应值，禁止填写到 GitHub 或聊天中。
+4. 确认创建后，等待 Render 完成构建；健康检查路径为 `/health`。
+5. 部署成功后，打开 Render 提供的 `onrender.com` 地址即可使用网页。
+
+Render 免费服务 15 分钟无访问会休眠，首次重新访问通常需要等待约一分钟启动；休眠或重启后，本地上传的知识库资料会丢失，需要重新上传。
+
 ## 云端 API 配置
 
 1. 将 `.env.example` 复制为 `.env`。

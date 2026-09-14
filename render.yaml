@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: rag-knowledge-base-zhqq
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DASHSCOPE_API_KEY
+        sync: false
+      - key: DASHSCOPE_BASE_URL
+        sync: false
+      - key: EMBEDDING_MODEL
+        sync: false
+      - key: CHAT_MODEL
+        sync: false
