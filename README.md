@@ -29,6 +29,17 @@
 
 它们已被 Git 忽略，不会上传到 GitHub。删除 `data/` 中这两个文件即可清空本地知识库。
 
+## 部署准备
+
+项目已提供 `Dockerfile`，可部署到支持 Docker 的云端平台。部署平台需要配置以下环境变量，数值只在平台后台填写，不能写入代码或提交到 Git：
+
+- `DASHSCOPE_API_KEY`
+- `DASHSCOPE_BASE_URL`
+- `EMBEDDING_MODEL`
+- `CHAT_MODEL`
+
+当前版本将索引保存在服务本地 `data/`。因此在线演示可以让用户上传资料后立即问答，但免费云端实例重启后可能需要重新上传资料；若要长期保存资料，下一阶段需要接入云端持久化存储。
+
 ## 云端 API 配置
 
 1. 将 `.env.example` 复制为 `.env`。
