@@ -85,6 +85,19 @@ uvicorn app.main:app --reload
 | `POST /ask` | 基于知识库回答问题并返回来源 |
 | `DELETE /knowledge-base` | 清空当前知识库 |
 
+## 检索效果评估
+
+项目内置 4 条固定中文资料和 4 个对应问题，用于验证向量检索是否把预期来源返回到 Top-3。评测输出两个指标：
+
+- `Recall@3`：预期来源出现在前 3 个结果中的问题比例。
+- `MRR@3`：预期来源排名的平均倒数，越接近 1 表示越靠前。
+
+运行真实评测会调用两次云端向量接口，但不会写入本地知识库：
+
+```powershell
+.\.venv\Scripts\python.exe -m app.retrieval_evaluation
+```
+
 ## 本地知识库文件
 
 首次建立索引后，系统会生成：
