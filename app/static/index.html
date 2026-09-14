@@ -17,6 +17,16 @@
 
     <main class="workspace">
       <section class="documents-panel" aria-labelledby="upload-title">
+        <div class="knowledge-base-section">
+          <label for="knowledge-base-select">当前知识库</label>
+          <div class="knowledge-base-controls">
+            <select id="knowledge-base-select" disabled aria-label="选择知识库"></select>
+            <input id="knowledge-base-name" maxlength="50" placeholder="新知识库名称" aria-label="新知识库名称" />
+            <button class="secondary-button" id="create-knowledge-base-button" type="button">新建</button>
+          </div>
+          <p id="knowledge-base-hint">正在读取知识库列表</p>
+        </div>
+
         <div class="panel-heading">
           <div>
             <h1 id="upload-title">上传资料</h1>

@@ -12,9 +12,15 @@ const sendButton = document.querySelector("#send-button");
 const conversation = document.querySelector("#conversation");
 const emptyConversation = document.querySelector("#empty-conversation");
 const serviceState = document.querySelector("#service-state");
+const knowledgeBaseSelect = document.querySelector("#knowledge-base-select");
+const knowledgeBaseName = document.querySelector("#knowledge-base-name");
+const createKnowledgeBaseButton = document.querySelector("#create-knowledge-base-button");
+const knowledgeBaseHint = document.querySelector("#knowledge-base-hint");
 
 let selectedFile = null;
 let hasIndex = false;
+let cloudMode = false;
+let activeKnowledgeBaseId = null;
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -22,8 +28,12 @@ function formatFileSize(bytes) {
 }
 
 function setButtonLoading(button, label, loading) {
-  button.disabled = loading || (button === indexButton && !selectedFile);
+  button.disabled = loading || (button === indexButton && (!selectedFile || (cloudMode && activeKnowledgeBaseId === null)));
   button.querySelector("span")?.replaceChildren(document.createTextNode(label));
+}
+
+function updateIndexButton() {
+  indexButton.disabled = !selectedFile || (cloudMode && activeKnowledgeBaseId === null);
 }
 
 function showIndexResult(message, isError = false) {
@@ -45,7 +55,7 @@ function resetSelectedFile() {
   fileCard.classList.add("is-empty");
   fileName.textContent = "尚未选择文件";
   fileMeta.textContent = "请选择一份资料开始建立知识库";
-  indexButton.disabled = true;
+  updateIndexButton();
 }
 
 function resetConversation() {
@@ -68,9 +78,85 @@ function selectFile(file) {
   fileCard.classList.remove("is-empty");
   fileName.textContent = file.name;
   fileMeta.textContent = `${formatFileSize(file.size)} · 等待建立索引`;
-  indexButton.disabled = false;
+  updateIndexButton();
   indexResult.hidden = true;
 }
+
+async function activateKnowledgeBase(id, showMessage = true) {
+  try {
+    const response = await fetch(`/knowledge-bases/${id}/select`, { method: "POST" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "切换知识库失败");
+    activeKnowledgeBaseId = Number(payload.id);
+    knowledgeBaseSelect.value = String(activeKnowledgeBaseId);
+    setQuestionAvailability(payload.indexed_chunk_count > 0);
+    updateIndexButton();
+    if (showMessage) showIndexResult(`已切换知识库，当前共有 ${payload.indexed_chunk_count} 个段落。`);
+  } catch (error) {
+    activeKnowledgeBaseId = null;
+    setQuestionAvailability(false);
+    updateIndexButton();
+    showIndexResult(error.message || "切换知识库失败，请稍后重试。", true);
+  }
+}
+
+async function loadKnowledgeBases() {
+  try {
+    const response = await fetch("/knowledge-bases");
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "读取知识库列表失败");
+    cloudMode = payload.mode === "cloud";
+    knowledgeBaseName.disabled = !cloudMode;
+    createKnowledgeBaseButton.disabled = !cloudMode;
+    knowledgeBaseSelect.replaceChildren();
+    const knowledgeBases = payload.knowledge_bases || [];
+    if (!knowledgeBases.length) {
+      knowledgeBaseSelect.append(new Option("请先新建知识库", ""));
+      knowledgeBaseSelect.disabled = true;
+      knowledgeBaseHint.textContent = "云端模式：请先输入名称并新建知识库。";
+      setQuestionAvailability(false);
+      updateIndexButton();
+      return;
+    }
+    knowledgeBases.forEach((item) => knowledgeBaseSelect.append(new Option(item.name, String(item.id))));
+    knowledgeBaseSelect.disabled = false;
+    knowledgeBaseHint.textContent = cloudMode ? "云端模式：资料会保存到当前选择的知识库。" : "本地模式：配置 Supabase 后可创建多个云端知识库。";
+    const selectedId = payload.active_knowledge_base_id ?? knowledgeBases[0].id;
+    await activateKnowledgeBase(selectedId, false);
+  } catch (error) {
+    knowledgeBaseHint.textContent = "知识库列表读取失败。";
+    showIndexResult(error.message || "知识库列表读取失败，请稍后重试。", true);
+  }
+}
+
+knowledgeBaseSelect.addEventListener("change", () => {
+  if (knowledgeBaseSelect.value) activateKnowledgeBase(knowledgeBaseSelect.value);
+});
+
+createKnowledgeBaseButton.addEventListener("click", async () => {
+  const name = knowledgeBaseName.value.trim();
+  if (!name) {
+    showIndexResult("请输入新知识库名称。", true);
+    return;
+  }
+  createKnowledgeBaseButton.disabled = true;
+  try {
+    const response = await fetch("/knowledge-bases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "创建知识库失败");
+    knowledgeBaseName.value = "";
+    await loadKnowledgeBases();
+    showIndexResult(`已创建并切换到“${payload.name}”。`);
+  } catch (error) {
+    showIndexResult(error.message || "创建知识库失败，请稍后重试。", true);
+  } finally {
+    createKnowledgeBaseButton.disabled = false;
+  }
+});
 
 function icon(name) {
   if (name === "book") return '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 5.5A2.5 2.5 0 0 1 6.5 8H20M9 7v12" stroke="currentColor" stroke-width="1.7"/></svg>';
@@ -140,6 +226,7 @@ indexButton.addEventListener("click", async () => {
   setButtonLoading(indexButton, "正在建立索引…", true);
   const formData = new FormData();
   formData.append("file", selectedFile);
+  if (cloudMode && activeKnowledgeBaseId !== null) formData.append("knowledge_base_id", String(activeKnowledgeBaseId));
   try {
     const response = await fetch("/documents/index", { method: "POST", body: formData });
     const payload = await response.json();
@@ -155,7 +242,7 @@ indexButton.addEventListener("click", async () => {
 });
 
 clearButton.addEventListener("click", async () => {
-  if (!window.confirm("确定清空当前知识库吗？此操作会删除本地索引文件，无法恢复。")) return;
+  if (!window.confirm("确定清空当前知识库吗？当前知识库中的资料和索引将无法恢复。")) return;
   clearButton.disabled = true;
   try {
     const response = await fetch("/knowledge-base", { method: "DELETE" });
@@ -194,17 +281,4 @@ questionForm.addEventListener("submit", async (event) => {
 });
 
 checkService();
-
-async function loadKnowledgeBaseStatus() {
-  try {
-    const response = await fetch("/knowledge-base/status");
-    const payload = await response.json();
-    if (!response.ok || payload.indexed_chunk_count <= 0) return;
-    setQuestionAvailability(true);
-    showIndexResult(`已恢复本地知识库：当前共有 ${payload.indexed_chunk_count} 个段落。`);
-  } catch {
-    // 知识库状态读取失败时，仍允许用户重新上传资料建立索引。
-  }
-}
-
-loadKnowledgeBaseStatus();
+loadKnowledgeBases();

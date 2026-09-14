@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -7,13 +7,24 @@ from pathlib import Path
 from app.chat_client import ChatError, answer_from_context
 from app.document_reader import DocumentReadError, read_text_document
 from app.embedding_client import EmbeddingError, embed_texts
-from app.settings import SettingsError, load_chat_settings, load_embedding_settings
+from app.knowledge_base_repository import (
+    KnowledgeBaseRepositoryError,
+    SupabaseKnowledgeBaseRepository,
+)
+from app.settings import (
+    SettingsError,
+    load_chat_settings,
+    load_embedding_settings,
+    load_supabase_settings,
+)
 from app.text_chunker import DocumentChunk, split_document
 from app.vector_store import SearchResult, VectorStore, VectorStoreError
 
 app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
 vector_store: VectorStore | None = None
+cloud_repository: SupabaseKnowledgeBaseRepository | None = None
+active_knowledge_base_id: int | None = None
 STATIC_DIR = Path(__file__).parent / "static"
 DATA_DIR = Path(__file__).parent.parent / "data"
 INDEX_PATH = DATA_DIR / "knowledge_base.faiss"
@@ -28,9 +39,14 @@ class AskRequest(BaseModel):
 
 @app.on_event("startup")
 def restore_vector_store() -> None:
-    """服务启动时恢复此前已保存的知识库。"""
-    global vector_store
-    vector_store = VectorStore.load(INDEX_PATH, METADATA_PATH)
+    """服务启动时优先启用云端知识库；未配置时保留本地模式。"""
+    global cloud_repository, vector_store
+    try:
+        cloud_repository = SupabaseKnowledgeBaseRepository(load_supabase_settings())
+        vector_store = None
+    except SettingsError:
+        cloud_repository = None
+        vector_store = VectorStore.load(INDEX_PATH, METADATA_PATH)
 
 
 @app.get("/", include_in_schema=False)
@@ -44,9 +60,74 @@ def health_check() -> dict[str, str]:
 
 
 @app.get("/knowledge-base/status")
-def knowledge_base_status() -> dict[str, int]:
+def knowledge_base_status() -> dict[str, int | str | None]:
     """返回当前已加载的知识库段落数量。"""
-    return {"indexed_chunk_count": vector_store.count if vector_store else 0}
+    return {
+        "mode": "cloud" if cloud_repository else "local",
+        "knowledge_base_id": active_knowledge_base_id,
+        "indexed_chunk_count": vector_store.count if vector_store else 0,
+    }
+
+
+@app.get("/knowledge-bases")
+def list_knowledge_bases() -> dict:
+    """列出可选择的知识库；未配置 Supabase 时提供单个本地知识库。"""
+    if cloud_repository is None:
+        return {
+            "mode": "local",
+            "active_knowledge_base_id": 0,
+            "knowledge_bases": [{"id": 0, "name": "本地默认知识库"}],
+        }
+    try:
+        knowledge_bases = cloud_repository.list_knowledge_bases()
+    except KnowledgeBaseRepositoryError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    return {
+        "mode": "cloud",
+        "active_knowledge_base_id": active_knowledge_base_id,
+        "knowledge_bases": [{"id": item.id, "name": item.name} for item in knowledge_bases],
+    }
+
+
+class KnowledgeBaseCreateRequest(BaseModel):
+    name: str
+
+
+@app.post("/knowledge-bases")
+def create_knowledge_base(request: KnowledgeBaseCreateRequest) -> dict[str, int | str]:
+    """创建一个新的云端知识库，并自动切换到它。"""
+    global active_knowledge_base_id, vector_store
+
+    name = request.name.strip()
+    if not name or len(name) > 50:
+        raise HTTPException(status_code=400, detail="知识库名称长度需要在 1 到 50 个字符之间")
+    if cloud_repository is None:
+        raise HTTPException(status_code=400, detail="请先配置 Supabase 云端知识库")
+    try:
+        knowledge_base = cloud_repository.create_knowledge_base(name)
+    except KnowledgeBaseRepositoryError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+    active_knowledge_base_id = knowledge_base.id
+    vector_store = None
+    return {"id": knowledge_base.id, "name": knowledge_base.name, "indexed_chunk_count": 0}
+
+
+@app.post("/knowledge-bases/{knowledge_base_id}/select")
+def select_knowledge_base(knowledge_base_id: int) -> dict[str, int]:
+    """切换知识库，并从云端段落和向量重建当前 FAISS 索引。"""
+    global active_knowledge_base_id, vector_store
+
+    if cloud_repository is None:
+        if knowledge_base_id != 0:
+            raise HTTPException(status_code=400, detail="本地模式只有默认知识库")
+        return {"id": 0, "indexed_chunk_count": vector_store.count if vector_store else 0}
+    try:
+        vector_store = cloud_repository.load_vector_store(knowledge_base_id)
+    except KnowledgeBaseRepositoryError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    active_knowledge_base_id = knowledge_base_id
+    return {"id": knowledge_base_id, "indexed_chunk_count": vector_store.count if vector_store else 0}
 
 
 @app.delete("/knowledge-base")
@@ -54,11 +135,19 @@ def clear_knowledge_base() -> dict[str, str | int]:
     """清空内存和本地保存的知识库文件。"""
     global vector_store
 
-    try:
-        INDEX_PATH.unlink(missing_ok=True)
-        METADATA_PATH.unlink(missing_ok=True)
-    except OSError as error:
-        raise HTTPException(status_code=500, detail="清空本地知识库失败") from error
+    if cloud_repository:
+        if active_knowledge_base_id is None:
+            raise HTTPException(status_code=400, detail="请先选择一个知识库")
+        try:
+            cloud_repository.clear_knowledge_base(active_knowledge_base_id)
+        except KnowledgeBaseRepositoryError as error:
+            raise HTTPException(status_code=502, detail=str(error)) from error
+    else:
+        try:
+            INDEX_PATH.unlink(missing_ok=True)
+            METADATA_PATH.unlink(missing_ok=True)
+        except OSError as error:
+            raise HTTPException(status_code=500, detail="清空本地知识库失败") from error
 
     vector_store = None
     return {"message": "知识库已清空", "indexed_chunk_count": 0}
@@ -129,17 +218,26 @@ def save_vector_store(store: VectorStore) -> None:
 
 
 @app.post("/documents/index")
-async def index_uploaded_document(file: UploadFile = File(...)) -> dict[str, str | int]:
+async def index_uploaded_document(
+    file: UploadFile = File(...), knowledge_base_id: int | None = Form(default=None)
+) -> dict[str, str | int]:
     """上传文档、切分文本并写入内存向量索引。"""
     filename, text = await read_uploaded_text(file)
     chunks = split_document(filename, text)
 
     try:
         vectors = embed_texts([chunk.content for chunk in chunks], load_embedding_settings())
+        if cloud_repository:
+            if active_knowledge_base_id is None or knowledge_base_id != active_knowledge_base_id:
+                raise HTTPException(status_code=400, detail="请先选择要写入的知识库")
+            cloud_repository.save_document(active_knowledge_base_id, filename, chunks, vectors)
         store = add_to_vector_store(chunks, vectors)
-        save_vector_store(store)
+        if cloud_repository is None:
+            save_vector_store(store)
     except SettingsError as error:
         raise HTTPException(status_code=500, detail="云端向量配置不完整") from error
+    except KnowledgeBaseRepositoryError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
     except EmbeddingError as error:
         raise HTTPException(status_code=502, detail="云端向量服务调用失败") from error
     except VectorStoreError as error:

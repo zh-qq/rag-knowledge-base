@@ -29,6 +29,7 @@
 - 回答附带来源文件、段落编号和相似度。
 - 索引会保存在本地，服务重启时自动恢复。
 - 网页端支持建立索引、问答和清空知识库。
+- 配置 Supabase 后，支持创建、切换多个云端知识库，并持久保存资料与向量。
 
 ## 工作流程
 
@@ -75,7 +76,20 @@ CHAT_MODEL=qwen-plus
 
 `.env` 已被 Git 忽略，禁止提交或分享。
 
-### 3. 启动服务
+### 3. 可选：启用 Supabase 云端知识库
+
+1. 在 Supabase 新建免费项目。
+2. 打开 SQL Editor，执行仓库中的 [`supabase/schema.sql`](supabase/schema.sql)。
+3. 在 `.env` 中补充下列服务端变量：
+
+```text
+SUPABASE_URL=https://<你的项目标识>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<你的服务端密钥>
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` 只能放在 FastAPI 与 Render 的环境变量中，绝不能提交到 GitHub 或写进浏览器代码。未配置这两个变量时，项目仍使用本地单知识库模式。
+
+### 4. 启动服务
 
 ```powershell
 uvicorn app.main:app --reload
@@ -126,6 +140,8 @@ uvicorn app.main:app --reload
 
 `data/` 已被 Git 忽略，不会上传到 GitHub。网页中的“清空知识库”操作会删除这些本地索引文件。
 
+启用 Supabase 后，文档段落和向量会保存到云端表中；切换知识库时，服务会重新构建该知识库的内存 FAISS 索引。Render 免费实例即使重启，也能从云端重新加载选中的知识库。
+
 ## Docker 与 Render 部署
 
 项目提供 `Dockerfile` 和 `render.yaml`，可部署到支持 Docker 的云端平台。
@@ -136,11 +152,12 @@ uvicorn app.main:app --reload
 2. 连接 GitHub 仓库 `zh-qq/rag-knowledge-base`。
 3. Render 会提示填写 `DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`CHAT_MODEL` 四个环境变量。
 4. 保持免费计划，创建服务后等待构建完成。
+5. 若启用 Supabase，在 Render 的 Environment 中额外设置 `SUPABASE_URL` 和 `SUPABASE_SERVICE_ROLE_KEY`。
 
 ## 当前限制与下一步
 
 - 支持 TXT、Markdown 与含文字的 PDF；暂未支持 Word，也不支持需要 OCR 的扫描型 PDF。
-- 当前索引保存在服务本地。Render 免费实例重启或休眠后会丢失已上传资料，需要重新上传。
-- 线上 Demo 使用共享的单个知识库，适合演示，不适合多人隔离或长期存储。
+- 未配置 Supabase 时，当前索引保存在服务本地；Render 免费实例重启或休眠后会丢失已上传资料。
+- 已配置 Supabase 时可以持久保存多个知识库；当前仍未提供用户登录，因此线上 Demo 的知识库并非按用户隔离。
 
 下一阶段将考虑：持久化存储、多知识库隔离和更完整的异常提示。

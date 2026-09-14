@@ -46,6 +46,13 @@ button:disabled { cursor: not-allowed; }
 }
 .documents-panel, .chat-panel { min-width: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
 .documents-panel { padding: 30px; }
+.knowledge-base-section { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+.knowledge-base-section > label { display: block; color: var(--ink); font-size: 15px; font-weight: 700; }
+.knowledge-base-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; margin-top: 10px; }
+.knowledge-base-controls select, .knowledge-base-controls input { min-width: 0; height: 42px; padding: 0 11px; border: 1px solid #c9d8e8; border-radius: 9px; color: var(--ink); background: white; }
+.knowledge-base-controls select:disabled { color: var(--muted); background: #f8fafc; }
+.knowledge-base-controls .secondary-button { min-height: 42px; padding: 0 13px; }
+.knowledge-base-section p { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .chat-panel { display: flex; flex-direction: column; min-height: 680px; overflow: hidden; }
 .panel-heading h1, .panel-heading h2, .index-section h2 { margin: 0; color: var(--ink); letter-spacing: -0.025em; }
 .panel-heading h1, .panel-heading h2 { font-size: 22px; }
@@ -118,6 +125,8 @@ button:disabled { cursor: not-allowed; }
   .brand { font-size: 20px; }
   .service-state { font-size: 12px; }
   .documents-panel { padding: 22px; }
+  .knowledge-base-controls { grid-template-columns: 1fr auto; }
+  .knowledge-base-controls select { grid-column: 1 / -1; }
   .chat-heading, .conversation { padding-left: 20px; padding-right: 20px; }
   .question-form { padding: 14px 20px 20px; }
   .message { max-width: 94%; }

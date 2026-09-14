@@ -23,6 +23,12 @@ class ChatSettings:
     model: str
 
 
+@dataclass(frozen=True)
+class SupabaseSettings:
+    url: str
+    service_role_key: str
+
+
 def load_embedding_settings() -> EmbeddingSettings:
     """从本地 .env 和环境变量读取向量服务配置。"""
     load_dotenv()
@@ -52,6 +58,12 @@ def load_chat_settings() -> ChatSettings:
     return chat_settings_from_values(os.environ)
 
 
+def load_supabase_settings() -> SupabaseSettings:
+    """从本地 .env 和环境变量读取云端知识库配置。"""
+    load_dotenv()
+    return supabase_settings_from_values(os.environ)
+
+
 def chat_settings_from_values(values: Mapping[str, str]) -> ChatSettings:
     required_keys = {
         "DASHSCOPE_API_KEY": "api_key",
@@ -66,4 +78,19 @@ def chat_settings_from_values(values: Mapping[str, str]) -> ChatSettings:
         api_key=values["DASHSCOPE_API_KEY"].strip(),
         base_url=values["DASHSCOPE_BASE_URL"].strip(),
         model=values["CHAT_MODEL"].strip(),
+    )
+
+
+def supabase_settings_from_values(values: Mapping[str, str]) -> SupabaseSettings:
+    required_keys = {
+        "SUPABASE_URL": "url",
+        "SUPABASE_SERVICE_ROLE_KEY": "service_role_key",
+    }
+    missing_keys = [key for key in required_keys if not values.get(key, "").strip()]
+    if missing_keys:
+        raise SettingsError(f"缺少配置：{', '.join(missing_keys)}")
+
+    return SupabaseSettings(
+        url=values["SUPABASE_URL"].strip(),
+        service_role_key=values["SUPABASE_SERVICE_ROLE_KEY"].strip(),
     )
