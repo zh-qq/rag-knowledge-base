@@ -29,6 +29,10 @@ class VectorStore:
         self.index = faiss.IndexFlatIP(dimension)
         self.chunks: list[DocumentChunk] = []
 
+    @property
+    def count(self) -> int:
+        return len(self.chunks)
+
     def add(self, chunks: list[DocumentChunk], vectors: list[list[float]]) -> None:
         if not chunks:
             raise VectorStoreError("待索引段落不能为空")

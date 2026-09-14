@@ -1,10 +1,14 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
 from app.document_reader import DocumentReadError, read_text_document
+from app.embedding_client import EmbeddingError, embed_texts
+from app.settings import SettingsError, load_embedding_settings
 from app.text_chunker import DocumentChunk, split_document
+from app.vector_store import SearchResult, VectorStore, VectorStoreError
 
 app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
+vector_store: VectorStore | None = None
 
 
 @app.get("/health")
@@ -55,4 +59,75 @@ def serialize_chunk(chunk: DocumentChunk) -> dict[str, str | int]:
         "source_file": chunk.source_file,
         "chunk_index": chunk.chunk_index,
         "content": chunk.content,
+    }
+
+
+def add_to_vector_store(chunks: list[DocumentChunk], vectors: list[list[float]]) -> VectorStore:
+    """首次写入时根据云端向量维度创建索引，后续文档加入同一索引。"""
+    global vector_store
+
+    if not vectors:
+        raise VectorStoreError("云端未返回文档向量")
+    if vector_store is None:
+        vector_store = VectorStore(dimension=len(vectors[0]))
+
+    vector_store.add(chunks, vectors)
+    return vector_store
+
+
+@app.post("/documents/index")
+async def index_uploaded_document(file: UploadFile = File(...)) -> dict[str, str | int]:
+    """上传文档、切分文本并写入内存向量索引。"""
+    filename, text = await read_uploaded_text(file)
+    chunks = split_document(filename, text)
+
+    try:
+        vectors = embed_texts([chunk.content for chunk in chunks], load_embedding_settings())
+        store = add_to_vector_store(chunks, vectors)
+    except SettingsError as error:
+        raise HTTPException(status_code=500, detail="云端向量配置不完整") from error
+    except EmbeddingError as error:
+        raise HTTPException(status_code=502, detail="云端向量服务调用失败") from error
+    except VectorStoreError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
+
+    return {
+        "file_name": filename,
+        "chunk_count": len(chunks),
+        "indexed_chunk_count": store.count,
+    }
+
+
+@app.get("/search")
+def search_documents(query: str, limit: int = 3) -> dict:
+    """将用户问题向量化，并返回最相关的文本段落。"""
+    if not query.strip():
+        raise HTTPException(status_code=400, detail="问题不能为空")
+    if limit <= 0 or limit > 10:
+        raise HTTPException(status_code=400, detail="返回数量必须在 1 到 10 之间")
+    if vector_store is None:
+        raise HTTPException(status_code=400, detail="尚未建立知识库索引")
+
+    try:
+        vectors = embed_texts([query], load_embedding_settings())
+        results = vector_store.search(vectors[0], limit)
+    except SettingsError as error:
+        raise HTTPException(status_code=500, detail="云端向量配置不完整") from error
+    except EmbeddingError as error:
+        raise HTTPException(status_code=502, detail="云端向量服务调用失败") from error
+    except VectorStoreError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
+
+    return {
+        "query": query,
+        "results": [serialize_search_result(result) for result in results],
+    }
+
+
+def serialize_search_result(result: SearchResult) -> dict[str, str | int | float]:
+    return {
+        "source_file": result.source_file,
+        "chunk_index": result.chunk_index,
+        "content": result.content,
+        "score": result.score,
     }
