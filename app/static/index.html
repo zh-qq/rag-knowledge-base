@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAG 知识库</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="RAG 知识库首页">RAG 知识库</a>
+      <div class="service-state" id="service-state" aria-live="polite">
+        <span class="status-dot"></span>
+        <span>正在检查服务</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="documents-panel" aria-labelledby="upload-title">
+        <div class="panel-heading">
+          <div>
+            <h1 id="upload-title">上传资料</h1>
+            <p>支持 UTF-8 编码的 TXT 与 Markdown 文件</p>
+          </div>
+        </div>
+
+        <label class="drop-zone" id="drop-zone" for="file-input">
+          <input id="file-input" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M14 2.75H6.75A2.75 2.75 0 0 0 4 5.5v13A2.75 2.75 0 0 0 6.75 21h10.5A2.75 2.75 0 0 0 20 18.25V8.75L14 2.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+            <path d="M14 2.75v6h6M12 16V10m0 0-2.25 2.25M12 10l2.25 2.25" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <strong>点击或拖拽文件到此处上传</strong>
+          <span>文件仅在建立索引时发送至服务</span>
+        </label>
+
+        <div class="file-card is-empty" id="file-card" aria-live="polite">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M14 2.75H6.75A2.75 2.75 0 0 0 4 5.5v13A2.75 2.75 0 0 0 6.75 21h10.5A2.75 2.75 0 0 0 20 18.25V8.75L14 2.75Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+            <path d="M14 2.75v6h6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+          </svg>
+          <div>
+            <strong id="file-name">尚未选择文件</strong>
+            <span id="file-meta">请选择一份资料开始建立知识库</span>
+          </div>
+        </div>
+
+        <div class="index-section">
+          <div>
+            <h2>建立索引</h2>
+            <p>系统会自动切分资料、生成向量并加入当前知识库。</p>
+          </div>
+          <button class="primary-button" id="index-button" type="button" disabled>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <ellipse cx="12" cy="5.5" rx="6.5" ry="3" stroke="currentColor" stroke-width="1.7" />
+              <path d="M5.5 5.5v6c0 1.65 2.9 3 6.5 3s6.5-1.35 6.5-3v-6M5.5 11.5v6c0 1.65 2.9 3 6.5 3s6.5-1.35 6.5-3v-6" stroke="currentColor" stroke-width="1.7" />
+            </svg>
+            <span>建立索引</span>
+          </button>
+        </div>
+
+        <div class="index-result" id="index-result" hidden aria-live="polite"></div>
+      </section>
+
+      <section class="chat-panel" aria-labelledby="chat-title">
+        <div class="panel-heading chat-heading">
+          <div>
+            <h2 id="chat-title">与知识库对话</h2>
+            <p>系统会依据已建立索引的资料回答，并附上来源。</p>
+          </div>
+        </div>
+
+        <div class="conversation" id="conversation" aria-live="polite">
+          <div class="empty-conversation" id="empty-conversation">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M7.5 18.5 4 21v-4.25A8 8 0 1 1 20 13a7.94 7.94 0 0 1-1.45 4.62" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M8 12h.01M12 12h.01M16 12h.01" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" />
+            </svg>
+            <p>建立索引后，在这里提出你的问题。</p>
+          </div>
+        </div>
+
+        <form class="question-form" id="question-form">
+          <label class="sr-only" for="question-input">你的问题</label>
+          <textarea id="question-input" rows="1" maxlength="1000" placeholder="请输入你的问题" disabled></textarea>
+          <button class="send-button" id="send-button" type="submit" disabled aria-label="发送问题">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="m21 3-7.1 18-3.7-7.2L3 10.1 21 3Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="m10.2 13.8 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+            </svg>
+          </button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

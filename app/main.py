@@ -1,5 +1,8 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from pathlib import Path
 
 from app.chat_client import ChatError, answer_from_context
 from app.document_reader import DocumentReadError, read_text_document
@@ -11,11 +14,18 @@ from app.vector_store import SearchResult, VectorStore, VectorStoreError
 app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
 vector_store: VectorStore | None = None
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 class AskRequest(BaseModel):
     question: str
     limit: int = 3
+
+
+@app.get("/", include_in_schema=False)
+def serve_app() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")
