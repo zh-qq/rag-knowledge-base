@@ -3,12 +3,13 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi import HTTPException, UploadFile
 
 import app.main as main
 from app.settings import AppSettings
+from app.knowledge_base_repository import KnowledgeBase
 from app.text_chunker import DocumentChunk
 from app.vector_store import VectorStore
 
@@ -17,12 +18,18 @@ class RagEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
         self.original_store = main.vector_store
         self.original_runtime_settings = main.runtime_settings
+        self.original_cloud_repository = main.cloud_repository
+        self.original_active_knowledge_base_id = main.active_knowledge_base_id
         main.vector_store = None
+        main.cloud_repository = None
+        main.active_knowledge_base_id = None
         main.runtime_settings = AppSettings(False, "公开演示知识库", 2 * 1024 * 1024, 200, 1000, 32)
 
     def tearDown(self) -> None:
         main.vector_store = self.original_store
         main.runtime_settings = self.original_runtime_settings
+        main.cloud_repository = self.original_cloud_repository
+        main.active_knowledge_base_id = self.original_active_knowledge_base_id
 
     def test_indexes_document_then_returns_matching_search_result(self) -> None:
         upload = UploadFile(
@@ -148,3 +155,30 @@ class RagEndpointTests(unittest.TestCase):
             main.select_knowledge_base(1)
         with self.assertRaisesRegex(HTTPException, "只读模式"):
             main.clear_knowledge_base()
+        with self.assertRaisesRegex(HTTPException, "只读模式"):
+            main.delete_knowledge_base(1)
+
+    def test_deletes_current_cloud_knowledge_base(self) -> None:
+        repository = MagicMock()
+        repository.get_knowledge_base_by_name.return_value = None
+        main.cloud_repository = repository
+        main.active_knowledge_base_id = 9
+        main.vector_store = VectorStore(dimension=2)
+
+        result = main.delete_knowledge_base(9)
+
+        repository.delete_knowledge_base.assert_called_once_with(9)
+        self.assertEqual(result["message"], "知识库已删除")
+        self.assertIsNone(main.active_knowledge_base_id)
+        self.assertIsNone(main.vector_store)
+
+    def test_protects_public_demo_knowledge_base_from_deletion(self) -> None:
+        repository = MagicMock()
+        repository.get_knowledge_base_by_name.return_value = KnowledgeBase(6, "公开演示知识库")
+        main.cloud_repository = repository
+        main.active_knowledge_base_id = 6
+
+        with self.assertRaisesRegex(HTTPException, "受保护"):
+            main.delete_knowledge_base(6)
+
+        repository.delete_knowledge_base.assert_not_called()

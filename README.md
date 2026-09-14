@@ -127,6 +127,7 @@ uvicorn app.main:app --reload
 | `GET /knowledge-bases` | 列出可访问知识库；公开模式仅返回样本库 |
 | `POST /knowledge-bases` | 创建云端知识库；公开模式禁用 |
 | `POST /knowledge-bases/{id}/select` | 切换知识库；公开模式禁用 |
+| `DELETE /knowledge-bases/{id}` | 删除当前云端知识库及全部资料；公开演示知识库受保护 |
 | `POST /documents/preview` | 预览上传文档 |
 | `POST /documents/chunks` | 查看文本切分结果 |
 | `POST /documents/index` | 上传并建立知识库索引 |

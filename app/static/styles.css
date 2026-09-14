@@ -53,6 +53,8 @@ button:disabled { cursor: not-allowed; }
 .knowledge-base-controls select:disabled { color: var(--muted); background: #f8fafc; }
 .knowledge-base-controls .secondary-button { min-height: 42px; padding: 0 13px; }
 .knowledge-base-section p { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.knowledge-base-section .danger-button { margin-top: 12px; border-color: #fecaca; color: #b91c1c; }
+.knowledge-base-section .danger-button:disabled { border-color: var(--border); color: #9aaabd; }
 .chat-panel { display: flex; flex-direction: column; min-height: 680px; overflow: hidden; }
 .panel-heading h1, .panel-heading h2, .index-section h2 { margin: 0; color: var(--ink); letter-spacing: -0.025em; }
 .panel-heading h1, .panel-heading h2 { font-size: 22px; }

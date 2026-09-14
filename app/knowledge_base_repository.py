@@ -125,6 +125,10 @@ class SupabaseKnowledgeBaseRepository:
     def clear_knowledge_base(self, knowledge_base_id: int) -> None:
         self._request("DELETE", "documents", {"knowledge_base_id": f"eq.{knowledge_base_id}"})
 
+    def delete_knowledge_base(self, knowledge_base_id: int) -> None:
+        """删除知识库记录；数据库外键会级联删除其中的文档和段落。"""
+        self._request("DELETE", "knowledge_bases", {"id": f"eq.{knowledge_base_id}"})
+
     def _request(
         self,
         method: str,

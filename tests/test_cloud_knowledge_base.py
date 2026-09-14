@@ -73,3 +73,9 @@ class CloudKnowledgeBaseTests(unittest.TestCase):
             self.assertRaisesRegex(Exception, "知识库名称已存在"),
         ):
             self.repository.create_knowledge_base("校园指南")
+
+    def test_deletes_knowledge_base_by_id(self) -> None:
+        with patch.object(self.repository, "_request", return_value=[]) as request:
+            self.repository.delete_knowledge_base(12)
+
+        request.assert_called_once_with("DELETE", "knowledge_bases", {"id": "eq.12"})

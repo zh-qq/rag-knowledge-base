@@ -15,6 +15,7 @@ const serviceState = document.querySelector("#service-state");
 const knowledgeBaseSelect = document.querySelector("#knowledge-base-select");
 const knowledgeBaseName = document.querySelector("#knowledge-base-name");
 const createKnowledgeBaseButton = document.querySelector("#create-knowledge-base-button");
+const deleteKnowledgeBaseButton = document.querySelector("#delete-knowledge-base-button");
 const knowledgeBaseHint = document.querySelector("#knowledge-base-hint");
 
 let selectedFile = null;
@@ -22,6 +23,7 @@ let hasIndex = false;
 let cloudMode = false;
 let activeKnowledgeBaseId = null;
 let publicDemoMode = false;
+let protectedKnowledgeBaseName = "";
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -96,6 +98,7 @@ async function activateKnowledgeBase(id, showMessage = true) {
     knowledgeBaseSelect.value = String(activeKnowledgeBaseId);
     setQuestionAvailability(payload.indexed_chunk_count > 0);
     updateIndexButton();
+    updateDeleteKnowledgeBaseButton();
     if (showMessage) showIndexResult(`已切换知识库，当前共有 ${payload.indexed_chunk_count} 个段落。`);
   } catch (error) {
     activeKnowledgeBaseId = null;
@@ -112,6 +115,7 @@ async function loadKnowledgeBases() {
     if (!response.ok) throw new Error(payload.detail || "读取知识库列表失败");
     cloudMode = payload.mode === "cloud";
     publicDemoMode = payload.public_demo_mode === true;
+    protectedKnowledgeBaseName = payload.protected_knowledge_base_name || "";
     setPublicDemoMode(publicDemoMode);
     knowledgeBaseSelect.replaceChildren();
     const knowledgeBases = payload.knowledge_bases || [];
@@ -121,6 +125,7 @@ async function loadKnowledgeBases() {
       knowledgeBaseHint.textContent = "云端模式：请先输入名称并新建知识库。";
       setQuestionAvailability(false);
       updateIndexButton();
+      updateDeleteKnowledgeBaseButton();
       return;
     }
     knowledgeBases.forEach((item) => knowledgeBaseSelect.append(new Option(item.name, String(item.id))));
@@ -132,6 +137,7 @@ async function loadKnowledgeBases() {
     if (publicDemoMode) {
       activeKnowledgeBaseId = Number(selectedId);
       knowledgeBaseSelect.value = String(activeKnowledgeBaseId);
+      updateDeleteKnowledgeBaseButton();
       const statusResponse = await fetch("/knowledge-base/status");
       const status = await statusResponse.json();
       if (!statusResponse.ok) throw new Error(status.detail || "读取知识库状态失败");
@@ -173,6 +179,28 @@ createKnowledgeBaseButton.addEventListener("click", async () => {
     showIndexResult(error.message || "创建知识库失败，请稍后重试。", true);
   } finally {
     createKnowledgeBaseButton.disabled = false;
+  }
+});
+
+deleteKnowledgeBaseButton.addEventListener("click", async () => {
+  if (deleteKnowledgeBaseButton.disabled || activeKnowledgeBaseId === null) return;
+  const name = knowledgeBaseSelect.selectedOptions[0]?.text || "当前知识库";
+  if (!window.confirm(`确定删除“${name}”吗？其中全部资料和索引将无法恢复。`)) return;
+  deleteKnowledgeBaseButton.disabled = true;
+  try {
+    const response = await fetch(`/knowledge-bases/${activeKnowledgeBaseId}`, { method: "DELETE" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "删除知识库失败");
+    activeKnowledgeBaseId = null;
+    setQuestionAvailability(false);
+    resetSelectedFile();
+    resetConversation();
+    await loadKnowledgeBases();
+    showIndexResult(`知识库“${name}”已删除。`);
+  } catch (error) {
+    showIndexResult(error.message || "删除知识库失败，请稍后重试。", true);
+  } finally {
+    updateDeleteKnowledgeBaseButton();
   }
 });
 
@@ -222,10 +250,18 @@ function setPublicDemoMode(enabled) {
   createKnowledgeBaseButton.disabled = enabled || !cloudMode;
   knowledgeBaseName.hidden = enabled;
   createKnowledgeBaseButton.hidden = enabled;
+  deleteKnowledgeBaseButton.hidden = enabled;
   dropZone.hidden = enabled;
   fileCard.hidden = enabled;
   indexButton.parentElement.hidden = enabled;
   if (enabled) resetSelectedFile();
+}
+
+function updateDeleteKnowledgeBaseButton() {
+  const activeName = knowledgeBaseSelect.selectedOptions[0]?.text || "";
+  const protectedKnowledgeBase = activeName === protectedKnowledgeBaseName;
+  deleteKnowledgeBaseButton.disabled = publicDemoMode || !cloudMode || activeKnowledgeBaseId === null || protectedKnowledgeBase;
+  deleteKnowledgeBaseButton.title = protectedKnowledgeBase ? "公开演示知识库受保护，不能删除" : "";
 }
 
 function escapeHtml(value) {

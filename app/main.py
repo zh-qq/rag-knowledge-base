@@ -113,6 +113,7 @@ def list_knowledge_bases() -> dict:
         return {
             "mode": "cloud",
             "public_demo_mode": True,
+            "protected_knowledge_base_name": runtime_settings.public_demo_knowledge_base_name,
             "active_knowledge_base_id": active_knowledge_base_id,
             "knowledge_bases": [
                 {
@@ -128,6 +129,7 @@ def list_knowledge_bases() -> dict:
     return {
         "mode": "cloud",
         "public_demo_mode": False,
+        "protected_knowledge_base_name": runtime_settings.public_demo_knowledge_base_name,
         "active_knowledge_base_id": active_knowledge_base_id,
         "knowledge_bases": [{"id": item.id, "name": item.name} for item in knowledge_bases],
     }
@@ -174,6 +176,31 @@ def select_knowledge_base(knowledge_base_id: int) -> dict[str, int]:
         raise HTTPException(status_code=502, detail=str(error)) from error
     active_knowledge_base_id = knowledge_base_id
     return {"id": knowledge_base_id, "indexed_chunk_count": vector_store.count if vector_store else 0}
+
+
+@app.delete("/knowledge-bases/{knowledge_base_id}")
+def delete_knowledge_base(knowledge_base_id: int) -> dict[str, str]:
+    """删除当前云端知识库及其级联文档；公开样本库不可删除。"""
+    global active_knowledge_base_id, vector_store
+    ensure_writable()
+
+    if cloud_repository is None:
+        raise HTTPException(status_code=400, detail="本地模式不能删除默认知识库")
+    if active_knowledge_base_id != knowledge_base_id:
+        raise HTTPException(status_code=400, detail="只能删除当前选择的知识库")
+    try:
+        protected_knowledge_base = cloud_repository.get_knowledge_base_by_name(
+            runtime_settings.public_demo_knowledge_base_name
+        )
+        if protected_knowledge_base and protected_knowledge_base.id == knowledge_base_id:
+            raise HTTPException(status_code=403, detail="公开演示知识库受保护，不能删除")
+        cloud_repository.delete_knowledge_base(knowledge_base_id)
+    except KnowledgeBaseRepositoryError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+    active_knowledge_base_id = None
+    vector_store = None
+    return {"message": "知识库已删除"}
 
 
 @app.delete("/knowledge-base")
