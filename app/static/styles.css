@@ -68,10 +68,14 @@ button:disabled { cursor: not-allowed; }
 
 .index-section { margin-top: 28px; padding-top: 26px; border-top: 1px solid var(--border); }
 .index-section h2 { font-size: 19px; }
-.primary-button { display: flex; width: 100%; align-items: center; justify-content: center; gap: 10px; min-height: 52px; margin-top: 18px; border: 0; border-radius: 10px; color: white; background: var(--accent); font-size: 16px; font-weight: 650; box-shadow: 0 9px 18px rgba(37, 99, 235, 0.22); transition: background 160ms ease, transform 160ms ease; }
+.index-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-top: 18px; }
+.primary-button { display: flex; width: 100%; align-items: center; justify-content: center; gap: 10px; min-height: 52px; border: 0; border-radius: 10px; color: white; background: var(--accent); font-size: 16px; font-weight: 650; box-shadow: 0 9px 18px rgba(37, 99, 235, 0.22); transition: background 160ms ease, transform 160ms ease; }
 .primary-button:not(:disabled):hover { background: var(--accent-dark); transform: translateY(-1px); }
 .primary-button:disabled { background: #b7c8e5; box-shadow: none; }
 .primary-button svg { width: 21px; height: 21px; }
+.secondary-button { min-height: 52px; padding: 0 15px; border: 1px solid #f1b9b9; border-radius: 10px; color: #b91c1c; background: #fff7f7; font-size: 14px; font-weight: 650; transition: background 160ms ease; }
+.secondary-button:not(:disabled):hover { background: #fee2e2; }
+.secondary-button:disabled { border-color: var(--border); color: #9aaabd; background: #f8fafc; }
 .index-result { margin-top: 18px; padding: 15px 16px; border: 1px solid #b9e5c7; border-radius: 12px; color: #166534; background: #f0fdf4; font-size: 14px; line-height: 1.65; }
 .index-result.is-error { border-color: #fecaca; color: #b91c1c; background: #fff7f7; }
 
@@ -117,4 +121,5 @@ button:disabled { cursor: not-allowed; }
   .chat-heading, .conversation { padding-left: 20px; padding-right: 20px; }
   .question-form { padding: 14px 20px 20px; }
   .message { max-width: 94%; }
+  .index-actions { grid-template-columns: 1fr; }
 }

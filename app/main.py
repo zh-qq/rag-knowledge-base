@@ -49,6 +49,21 @@ def knowledge_base_status() -> dict[str, int]:
     return {"indexed_chunk_count": vector_store.count if vector_store else 0}
 
 
+@app.delete("/knowledge-base")
+def clear_knowledge_base() -> dict[str, str | int]:
+    """清空内存和本地保存的知识库文件。"""
+    global vector_store
+
+    try:
+        INDEX_PATH.unlink(missing_ok=True)
+        METADATA_PATH.unlink(missing_ok=True)
+    except OSError as error:
+        raise HTTPException(status_code=500, detail="清空本地知识库失败") from error
+
+    vector_store = None
+    return {"message": "知识库已清空", "indexed_chunk_count": 0}
+
+
 async def read_uploaded_text(file: UploadFile) -> tuple[str, str]:
     """读取上传文件；始终在请求结束前关闭临时文件。"""
     filename = file.filename or ""

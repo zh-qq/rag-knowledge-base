@@ -1,5 +1,7 @@
 import asyncio
 from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
@@ -44,6 +46,28 @@ class RagEndpointTests(unittest.TestCase):
         result = main.knowledge_base_status()
 
         self.assertEqual(result["indexed_chunk_count"], 1)
+
+    def test_clears_saved_knowledge_base(self) -> None:
+        store = VectorStore(dimension=2)
+        store.add([DocumentChunk("network.txt", 0, "校园网络报修流程")], [[1.0, 0.0]])
+
+        with TemporaryDirectory() as directory:
+            index_path = Path(directory) / "knowledge_base.faiss"
+            metadata_path = Path(directory) / "chunks.json"
+            store.save(index_path, metadata_path)
+            main.vector_store = store
+
+            with (
+                patch("app.main.INDEX_PATH", index_path),
+                patch("app.main.METADATA_PATH", metadata_path),
+            ):
+                result = main.clear_knowledge_base()
+
+            self.assertFalse(index_path.exists())
+            self.assertFalse(metadata_path.exists())
+
+        self.assertEqual(result["indexed_chunk_count"], 0)
+        self.assertIsNone(main.vector_store)
 
     def test_rejects_search_before_any_document_is_indexed(self) -> None:
         with self.assertRaisesRegex(Exception, "尚未建立知识库索引"):

@@ -4,6 +4,7 @@ const fileCard = document.querySelector("#file-card");
 const fileName = document.querySelector("#file-name");
 const fileMeta = document.querySelector("#file-meta");
 const indexButton = document.querySelector("#index-button");
+const clearButton = document.querySelector("#clear-button");
 const indexResult = document.querySelector("#index-result");
 const questionForm = document.querySelector("#question-form");
 const questionInput = document.querySelector("#question-input");
@@ -35,6 +36,25 @@ function setQuestionAvailability(enabled) {
   hasIndex = enabled;
   questionInput.disabled = !enabled;
   sendButton.disabled = !enabled;
+  clearButton.disabled = !enabled;
+}
+
+function resetSelectedFile() {
+  selectedFile = null;
+  fileInput.value = "";
+  fileCard.classList.add("is-empty");
+  fileName.textContent = "尚未选择文件";
+  fileMeta.textContent = "请选择一份资料开始建立知识库";
+  indexButton.disabled = true;
+}
+
+function resetConversation() {
+  conversation.replaceChildren();
+  const emptyState = document.createElement("div");
+  emptyState.className = "empty-conversation";
+  emptyState.id = "empty-conversation";
+  emptyState.textContent = "建立索引后，在这里提出你的问题。";
+  conversation.append(emptyState);
 }
 
 function selectFile(file) {
@@ -131,6 +151,23 @@ indexButton.addEventListener("click", async () => {
     showIndexResult(error.message || "建立索引失败，请稍后重试。", true);
   } finally {
     setButtonLoading(indexButton, "建立索引", false);
+  }
+});
+
+clearButton.addEventListener("click", async () => {
+  if (!window.confirm("确定清空当前知识库吗？此操作会删除本地索引文件，无法恢复。")) return;
+  clearButton.disabled = true;
+  try {
+    const response = await fetch("/knowledge-base", { method: "DELETE" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || "清空知识库失败");
+    setQuestionAvailability(false);
+    resetSelectedFile();
+    resetConversation();
+    showIndexResult("知识库已清空。你可以重新上传资料建立新的索引。");
+  } catch (error) {
+    clearButton.disabled = false;
+    showIndexResult(error.message || "清空知识库失败，请稍后重试。", true);
   }
 });
 
