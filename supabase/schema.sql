@@ -31,3 +31,8 @@ create index if not exists document_chunks_document_id_idx
 alter table public.knowledge_bases enable row level security;
 alter table public.documents enable row level security;
 alter table public.document_chunks enable row level security;
+
+-- 服务端 Secret Key 对应 service_role；浏览器没有表访问权限。
+grant usage on schema public to service_role;
+grant select, insert, update, delete on table public.knowledge_bases, public.documents, public.document_chunks to service_role;
+grant usage, select on all sequences in schema public to service_role;
