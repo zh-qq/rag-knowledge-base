@@ -1,5 +1,7 @@
 import unittest
+from io import BytesIO
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from app.knowledge_base_repository import SupabaseKnowledgeBaseRepository
 from app.settings import SettingsError, supabase_settings_from_values
@@ -56,3 +58,18 @@ class CloudKnowledgeBaseTests(unittest.TestCase):
         self.assertEqual(calls[0][0:2], ("POST", "documents"))
         self.assertEqual(calls[1][0:2], ("POST", "document_chunks"))
         self.assertEqual(calls[1][2][0]["document_id"], 8)
+
+    def test_reports_clear_message_for_duplicate_knowledge_base_name(self) -> None:
+        error = HTTPError(
+            "https://example.supabase.co/rest/v1/knowledge_bases",
+            409,
+            "Conflict",
+            {},
+            BytesIO(b'{"code":"23505"}'),
+        )
+
+        with (
+            patch("app.knowledge_base_repository.urlopen", side_effect=error),
+            self.assertRaisesRegex(Exception, "知识库名称已存在"),
+        ):
+            self.repository.create_knowledge_base("校园指南")

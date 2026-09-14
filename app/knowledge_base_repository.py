@@ -138,6 +138,8 @@ class SupabaseKnowledgeBaseRepository:
             with urlopen(Request(url, data=data, headers=headers, method=method), timeout=20) as response:
                 raw_response = response.read().decode("utf-8")
         except HTTPError as error:
+            if table == "knowledge_bases" and error.code == 409:
+                raise KnowledgeBaseRepositoryError("知识库名称已存在，请更换一个名称") from error
             raise KnowledgeBaseRepositoryError("云端知识库存储请求失败") from error
         except URLError as error:
             raise KnowledgeBaseRepositoryError("无法连接云端知识库存储") from error
