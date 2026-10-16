@@ -29,6 +29,7 @@
 - 使用 FAISS 进行余弦相似度检索。
 - FAISS 先召回最多 10 条候选，再调用 `qwen3-rerank` 精排最多 3 条资料。
 - Agent 通过工具调用决定何时检索知识库、读取来源或计算表达式，再生成中文回答。
+- 配置和风天气后，Agent 可查询城市或区县的实时天气；无需先建立知识库索引。
 - 对话模型可配置为百炼 Qwen 或 DeepSeek；知识库事实以 `[1]` 至 `[3]` 标注来源。
 - 来源卡片显示文件名、从 1 开始的段落编号、相关度与命中原文摘要。
 - 索引会保存在本地，服务重启时自动恢复。
@@ -47,6 +48,7 @@ flowchart LR
     D --> F
     F --> G[qwen3-rerank Top-3]
     G --> H[Agent 工具结果]
+    W[城市实时天气] --> H
     H --> I[可配置模型回答与编号引用]
 ```
 
@@ -59,8 +61,11 @@ flowchart LR
 | `search_knowledge` | 检索知识库并对结果重排序 | 最多返回 3 条来源 |
 | `read_source` | 读取本轮已经检索到的某条来源 | 不能读取未命中的资料 |
 | `calculate` | 计算简单四则运算 | 只解析数字、括号和 `+ - * /`，不执行代码 |
+| `get_weather` | 查询城市或区县的实时天气 | 仅查询当前天气，地点长度不超过 80 字；需配置和风天气 |
 
 以后接入新工具时，按以下顺序操作：定义清晰的输入参数 → 编写只完成一件事的 Python 函数 → 在 `app/agent_service.py` 注册工具描述和服务端参数校验 → 在 `app/main.py` 提供数据或业务回调 → 为正常和异常输入补充离线测试。不要让模型直接访问数据库、文件系统或密钥。
+
+天气工具提供了一个完整例子：`app/agent_service.py` 告诉模型工具名称与参数，并再次检查地点；`app/main.py` 把工具接到服务端；`app/weather_client.py` 先用城市搜索取得经纬度，再请求实时天气。模型只看到返回的天气数据，API Key 只在服务端环境变量中。网页会显示“天气服务由和风天气驱动”的来源链接。
 
 网页会在当前浏览器会话中保留最近 3 轮问答，用于理解连续追问；刷新页面、切换、清空或删除知识库后会自动清除。这些短期上下文不会写入 Supabase，也不提供跨设备的对话记录。
 
@@ -125,6 +130,22 @@ CHAT_MODEL=deepseek-flash
 ```
 
 旧版 `DASHSCOPE_API_KEY` 与 `DASHSCOPE_BASE_URL` 仍可作为对话模型配置的兼容回退。新项目应优先使用 `CHAT_*` 变量。切换后重启本地服务；Render 则在 Environment 页面更新同名变量并等待自动部署。
+
+#### 启用实时天气工具
+
+1. 登录[和风天气官方控制台](https://console.qweather.com/)，创建项目，并在项目内添加 **API KEY** 凭据。只需为当前项目创建一个 Key。
+2. 在控制台“设置”中找到自己的 **API Host**。这是专属域名；复制时在前面加上 `https://`，不要使用旧的公共 API 地址。
+3. 在项目根目录的 `.env` 中添加以下两行，把占位内容换成控制台显示的值；不要把真实 Key 发到聊天里：
+
+```text
+QWEATHER_API_KEY=<你的 API Key>
+QWEATHER_API_HOST=https://<你的专属 API Host>
+```
+
+4. 重启本地服务，打开 `http://127.0.0.1:8000`，提问“黄山市现在天气怎么样？”。页面应显示天气回答、`查询实时天气`执行记录和“天气服务由和风天气驱动”链接。若尚未建立知识库索引，天气问题仍可发送。
+5. 本地验证成功后，若要让公网 Demo 也能查天气，再到 Render 服务的 **Environment → Edit** 添加相同的两项变量并保存。仓库中的 `render.yaml` 只声明变量名，不包含真实值。
+
+此工具仅支持**实时天气**，不能查询明天或未来几天的预报。一次提问通常会先搜索城市、再查询天气，产生两次 API 请求。和风天气当前按月累计计费，天气与 GeoAPI 所在价格组前 5 万次请求单价为 0 元，超出后会计费；公开开放前请在控制台核对最新价格与用量。未设置天气变量时，知识库检索、计算与问答仍可使用；天气问题会收到配置错误提示。
 
 ### 3. 可选：启用 Supabase 云端知识库
 
@@ -196,7 +217,7 @@ uvicorn app.main:app --reload
 
 ## 测试与 CI
 
-项目目前包含 64 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
+项目目前包含 72 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -q
@@ -223,7 +244,7 @@ GitHub Actions 会在每次推送与 Pull Request 时，使用 Python 3.13 安�
 
 1. 登录 [Render Blueprints](https://dashboard.render.com/blueprints)。
 2. 连接 GitHub 仓库 `zh-qq/rag-knowledge-base`。
-3. 在 Render 的 Environment 页面填写 `CHAT_API_KEY`、`CHAT_BASE_URL`、`CHAT_MODEL`、`DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`DASHSCOPE_RERANK_BASE_URL` 与 `RERANK_MODEL`。
+3. 在 Render 的 Environment 页面填写 `CHAT_API_KEY`、`CHAT_BASE_URL`、`CHAT_MODEL`、`DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`DASHSCOPE_RERANK_BASE_URL` 与 `RERANK_MODEL`。天气工具另需 `QWEATHER_API_KEY` 和 `QWEATHER_API_HOST`。
 4. 保持免费计划，创建服务后等待构建完成。
 5. 启用 Supabase 时，设置 `SUPABASE_URL` 和 `SUPABASE_SECRET_KEY`；公开上线前按“公开 Demo 配置”填写只读模式变量。
 

@@ -21,6 +21,10 @@ services:
         sync: false
       - key: RERANK_MODEL
         sync: false
+      - key: QWEATHER_API_KEY
+        sync: false
+      - key: QWEATHER_API_HOST
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SECRET_KEY

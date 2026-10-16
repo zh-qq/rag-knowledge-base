@@ -19,7 +19,6 @@ const deleteKnowledgeBaseButton = document.querySelector("#delete-knowledge-base
 const knowledgeBaseHint = document.querySelector("#knowledge-base-hint");
 
 let selectedFile = null;
-let hasIndex = false;
 let cloudMode = false;
 let activeKnowledgeBaseId = null;
 let publicDemoMode = false;
@@ -30,6 +29,7 @@ const agentToolLabels = {
   search_knowledge: "检索知识库",
   read_source: "读取命中来源",
   calculate: "计算表达式",
+  get_weather: "查询实时天气",
 };
 
 function formatFileSize(bytes) {
@@ -53,9 +53,8 @@ function showIndexResult(message, isError = false) {
 }
 
 function setQuestionAvailability(enabled) {
-  hasIndex = enabled;
-  questionInput.disabled = !enabled;
-  sendButton.disabled = !enabled;
+  questionInput.disabled = false;
+  sendButton.disabled = false;
   clearButton.disabled = publicDemoMode || !enabled;
 }
 
@@ -74,7 +73,7 @@ function resetConversation() {
   const emptyState = document.createElement("div");
   emptyState.className = "empty-conversation";
   emptyState.id = "empty-conversation";
-  emptyState.textContent = "建立索引后，在这里提出你的问题。";
+  emptyState.textContent = "可以询问实时天气；知识库问答需要先建立索引。";
   conversation.append(emptyState);
 }
 
@@ -243,11 +242,15 @@ function appendAnswer(question, payload) {
         <li><span>${index + 1}</span>${escapeHtml(agentToolLabels[name] || `调用工具：${name}`)}</li>`).join("")}</ol>
     </section>` : "";
   const sourceSection = sources ? `<section class="source-list"><h3>来源</h3>${sources}</section>` : "";
+  const weatherCredit = toolCalls.includes("get_weather")
+    ? '<p><a href="https://www.qweather.com" target="_blank" rel="noopener noreferrer">天气服务由和风天气驱动</a></p>'
+    : "";
   answerNode.innerHTML = `
     <h2 class="answer-title">${icon("book")}<span>回答</span></h2>
     <div class="answer-content">${escapeHtml(payload.answer)}</div>
     ${trace}
-    ${sourceSection}`;
+    ${sourceSection}
+    ${weatherCredit}`;
 
   conversation.append(questionNode, answerNode);
   conversation.scrollTop = conversation.scrollHeight;
@@ -354,7 +357,7 @@ clearButton.addEventListener("click", async () => {
 questionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const question = questionInput.value.trim();
-  if (!hasIndex || !question) return;
+  if (!question) return;
   sendButton.disabled = true;
   try {
     const response = await fetch("/ask", {
