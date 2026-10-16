@@ -31,6 +31,12 @@ class RerankSettings:
 
 
 @dataclass(frozen=True)
+class WeatherSettings:
+    api_key: str
+    api_host: str
+
+
+@dataclass(frozen=True)
 class SupabaseSettings:
     url: str
     secret_key: str
@@ -81,6 +87,12 @@ def load_rerank_settings() -> RerankSettings:
     """从本地 .env 和环境变量读取重排序模型配置。"""
     load_dotenv()
     return rerank_settings_from_values(os.environ)
+
+
+def load_weather_settings() -> WeatherSettings:
+    """从本地 .env 和环境变量读取和风天气配置。"""
+    load_dotenv()
+    return weather_settings_from_values(os.environ)
 
 
 def load_supabase_settings() -> SupabaseSettings:
@@ -139,6 +151,21 @@ def rerank_settings_from_values(values: Mapping[str, str]) -> RerankSettings:
         api_key=values["DASHSCOPE_API_KEY"].strip(),
         base_url=values["DASHSCOPE_RERANK_BASE_URL"].rstrip("/"),
         model=values["RERANK_MODEL"].strip(),
+    )
+
+
+def weather_settings_from_values(values: Mapping[str, str]) -> WeatherSettings:
+    required_keys = ("QWEATHER_API_KEY", "QWEATHER_API_HOST")
+    missing_keys = [key for key in required_keys if not values.get(key, "").strip()]
+    if missing_keys:
+        raise SettingsError(f"缺少配置：{', '.join(missing_keys)}")
+
+    api_host = values["QWEATHER_API_HOST"].strip().rstrip("/")
+    if not api_host.startswith("https://"):
+        raise SettingsError("QWEATHER_API_HOST 必须使用 https:// 开头")
+    return WeatherSettings(
+        api_key=values["QWEATHER_API_KEY"].strip(),
+        api_host=api_host,
     )
 
 

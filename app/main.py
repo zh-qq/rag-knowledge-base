@@ -20,10 +20,12 @@ from app.settings import (
     load_embedding_settings,
     load_rerank_settings,
     load_supabase_settings,
+    load_weather_settings,
 )
 from app.rerank_client import RerankError, rerank_results
 from app.text_chunker import DocumentChunk, TextChunkError, split_document
 from app.vector_store import SearchResult, VectorStore, VectorStoreError
+from app.weather_client import WeatherError, get_current_weather
 
 app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
@@ -425,6 +427,9 @@ def ask_question(request: AskRequest) -> dict:
             raise AgentError("该来源编号不存在，请先检索知识库")
         return serialize_search_result(results[citation_index - 1], citation_index)
 
+    def get_weather(location: str) -> dict:
+        return get_current_weather(location, load_weather_settings())
+
     try:
         agent_response = run_agent(
             request.question,
@@ -432,12 +437,15 @@ def ask_question(request: AskRequest) -> dict:
             search_knowledge,
             read_source,
             history,
+            get_weather,
         )
     except SettingsError as error:
-        raise HTTPException(status_code=500, detail="云端模型配置不完整") from error
+        raise HTTPException(status_code=500, detail="云端服务配置不完整") from error
     except EmbeddingError as error:
         raise HTTPException(status_code=502, detail="云端向量服务调用失败") from error
     except RerankError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    except WeatherError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     except AgentError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error

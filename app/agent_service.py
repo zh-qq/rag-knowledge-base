@@ -24,6 +24,7 @@ class AgentResponse:
 
 SearchKnowledge = Callable[[str, int], dict]
 ReadSource = Callable[[int], dict]
+GetWeather = Callable[[str], dict]
 
 TOOLS = [
     {
@@ -75,6 +76,21 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "查询指定城市或区县的实时天气；只能查询当前天气，不能查询未来预报。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "城市或区县名称"},
+                },
+                "required": ["location"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
@@ -84,6 +100,7 @@ def run_agent(
     search_knowledge: SearchKnowledge,
     read_source: ReadSource,
     history: list[dict[str, str]] | None = None,
+    get_weather: GetWeather | None = None,
 ) -> AgentResponse:
     """让模型在受控工具之间循环，直到生成最终中文回答。"""
     if not question.strip():
@@ -95,8 +112,9 @@ def run_agent(
             "content": (
                 "你是知识库 Agent。与知识库有关的问题必须先调用 search_knowledge；"
                 "若需查看命中资料完整内容，再调用 read_source。数学表达式必须调用 calculate。"
+                "查询实时天气必须调用 get_weather；它不能提供未来天气预报。"
                 "只能使用工具返回的资料回答，资料不足时明确说明。请用简洁中文回答；"
-                "引用知识库事实时标注对应编号，例如 [1]。"
+                "引用知识库事实时标注对应编号，例如 [1]；天气回答需注明数据来自和风天气。"
             ),
         },
     ]
@@ -127,7 +145,13 @@ def run_agent(
             for tool_call in requested_tools:
                 tool_name = tool_call.function.name
                 tool_calls.append(tool_name)
-                result = _execute_tool(tool_name, tool_call.function.arguments, search_knowledge, read_source)
+                result = _execute_tool(
+                    tool_name,
+                    tool_call.function.arguments,
+                    search_knowledge,
+                    read_source,
+                    get_weather,
+                )
                 messages.append(
                     {
                         "role": "tool",
@@ -166,6 +190,7 @@ def _execute_tool(
     raw_arguments: str,
     search_knowledge: SearchKnowledge,
     read_source: ReadSource,
+    get_weather: GetWeather | None,
 ) -> dict:
     try:
         arguments = json.loads(raw_arguments)
@@ -194,6 +219,14 @@ def _execute_tool(
         if not isinstance(expression, str):
             raise AgentError("计算工具缺少表达式")
         return {"expression": expression, "result": calculate_expression(expression)}
+
+    if tool_name == "get_weather":
+        location = arguments.get("location")
+        if not isinstance(location, str) or not location.strip() or len(location.strip()) > 80:
+            raise AgentError("天气查询地点长度需要在 1 到 80 个字符之间")
+        if get_weather is None:
+            raise AgentError("天气工具暂未配置")
+        return get_weather(location.strip())
 
     raise AgentError("模型请求了不支持的工具")
 

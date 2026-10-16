@@ -65,6 +65,34 @@ class AgentServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(AgentError, "仅支持数字"):
             calculate_expression("__import__('os').system('dir')")
 
+    def test_calls_weather_tool_then_returns_answer(self) -> None:
+        get_weather = Mock(
+            return_value={
+                "location": "安徽黄山市",
+                "condition": "晴",
+                "temperature": "25°C",
+                "source": "和风天气",
+            }
+        )
+        first_response = response(None, [tool_call("get_weather", '{"location": "黄山市"}')])
+        final_response = response("黄山市当前晴，25°C。数据来自和风天气。")
+
+        with patch("app.agent_service.OpenAI") as openai_client:
+            openai_client.return_value.chat.completions.create.side_effect = [
+                first_response,
+                final_response,
+            ]
+            result = run_agent(
+                "黄山市现在天气怎么样？",
+                self.settings,
+                Mock(),
+                Mock(),
+                get_weather=get_weather,
+            )
+
+        self.assertEqual(result.tool_calls, ["get_weather"])
+        get_weather.assert_called_once_with("黄山市")
+
     def test_rejects_invalid_tool_arguments(self) -> None:
         invalid_response = response(None, [tool_call("search_knowledge", "not-json")])
 

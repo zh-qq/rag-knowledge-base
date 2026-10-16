@@ -6,6 +6,7 @@ from app.settings import (
     chat_settings_from_values,
     embedding_settings_from_values,
     rerank_settings_from_values,
+    weather_settings_from_values,
 )
 
 
@@ -108,3 +109,23 @@ class EmbeddingSettingsTests(unittest.TestCase):
 
         self.assertEqual(settings.base_url, "https://example.com/compatible-api/v1")
         self.assertEqual(settings.model, "qwen3-rerank")
+
+    def test_creates_weather_settings_from_environment_values(self) -> None:
+        settings = weather_settings_from_values(
+            {
+                "QWEATHER_API_KEY": "test-key",
+                "QWEATHER_API_HOST": "https://example.com/",
+            }
+        )
+
+        self.assertEqual(settings.api_key, "test-key")
+        self.assertEqual(settings.api_host, "https://example.com")
+
+    def test_rejects_non_https_weather_host(self) -> None:
+        with self.assertRaisesRegex(SettingsError, "https"):
+            weather_settings_from_values(
+                {
+                    "QWEATHER_API_KEY": "test-key",
+                    "QWEATHER_API_HOST": "http://example.com",
+                }
+            )

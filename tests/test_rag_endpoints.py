@@ -94,7 +94,7 @@ class RagEndpointTests(unittest.TestCase):
 
         captured_history = []
 
-        def run_agent_with_search(_question, _settings, search_knowledge, _read_source, history):
+        def run_agent_with_search(_question, _settings, search_knowledge, _read_source, history, _get_weather):
             captured_history.extend(history)
             search_knowledge("校园网络怎么报修？", 3)
             return AgentResponse("请联系信息中心报修校园网络。[1]", ["search_knowledge"])
@@ -119,6 +119,29 @@ class RagEndpointTests(unittest.TestCase):
         self.assertEqual(result["sources"][0]["citation_index"], 1)
         self.assertEqual(result["tool_calls"], ["search_knowledge"])
         self.assertEqual(captured_history, [{"role": "user", "content": "我想咨询校园服务。"}])
+
+    def test_wires_weather_tool_into_agent_request(self) -> None:
+        weather_settings = object()
+
+        def run_agent_with_weather(_question, _settings, _search, _read, _history, get_weather):
+            weather = get_weather("黄山市")
+            self.assertEqual(weather["condition"], "晴")
+            return AgentResponse("黄山市当前晴。数据来自和风天气。", ["get_weather"])
+
+        with (
+            patch("app.main.load_chat_settings"),
+            patch("app.main.load_weather_settings", return_value=weather_settings),
+            patch(
+                "app.main.get_current_weather",
+                return_value={"location": "安徽黄山市", "condition": "晴", "source": "和风天气"},
+            ) as current_weather,
+            patch("app.main.run_agent", side_effect=run_agent_with_weather),
+        ):
+            result = main.ask_question(main.AskRequest(question="黄山市现在天气怎么样？"))
+
+        self.assertEqual(result["tool_calls"], ["get_weather"])
+        self.assertEqual(result["sources"], [])
+        current_weather.assert_called_once_with("黄山市", weather_settings)
 
     def test_rejects_unsafe_conversation_history(self) -> None:
         request = main.AskRequest(
