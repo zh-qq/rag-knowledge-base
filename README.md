@@ -28,7 +28,8 @@
 - 调用阿里云百炼兼容接口生成文本向量。
 - 使用 FAISS 进行余弦相似度检索。
 - FAISS 先召回最多 10 条候选，再调用 `qwen3-rerank` 精排最多 3 条资料。
-- 调用 `qwen-plus` 根据精排结果生成中文回答，并以 `[1]` 至 `[3]` 标注来源。
+- Agent 通过工具调用决定何时检索知识库、读取来源或计算表达式，再生成中文回答。
+- 对话模型可配置为百炼 Qwen 或 DeepSeek；知识库事实以 `[1]` 至 `[3]` 标注来源。
 - 来源卡片显示文件名、从 1 开始的段落编号、相关度与命中原文摘要。
 - 索引会保存在本地，服务重启时自动恢复。
 - 非公开环境支持建立索引、问答和清空知识库；公开 Demo 为只读模式。
@@ -45,14 +46,27 @@ flowchart LR
     E --> F[FAISS Top-10 召回]
     D --> F
     F --> G[qwen3-rerank Top-3]
-    G --> H[qwen-plus 回答与编号引用]
+    G --> H[Agent 工具结果]
+    H --> I[可配置模型回答与编号引用]
 ```
+
+## Agent 工作方式
+
+项目使用单 Agent 架构，不把多个提示词包装成“多智能体”。Agent 每次最多进行 3 轮工具调用，工具参数由服务端再次校验：
+
+| 工具 | 作用 | 安全边界 |
+| --- | --- | --- |
+| `search_knowledge` | 检索知识库并对结果重排序 | 最多返回 3 条来源 |
+| `read_source` | 读取本轮已经检索到的某条来源 | 不能读取未命中的资料 |
+| `calculate` | 计算简单四则运算 | 只解析数字、括号和 `+ - * /`，不执行代码 |
+
+以后接入新工具时，按以下顺序操作：定义清晰的输入参数 → 编写只完成一件事的 Python 函数 → 在 `app/agent_service.py` 注册工具描述和服务端参数校验 → 在 `app/main.py` 提供数据或业务回调 → 为正常和异常输入补充离线测试。不要让模型直接访问数据库、文件系统或密钥。
 
 ## 技术栈
 
 - 后端：Python、FastAPI、Uvicorn
 - 检索：FAISS、NumPy
-- 云端模型：阿里云百炼兼容 API、`text-embedding-v2`、`qwen3-rerank`、`qwen-plus`
+- 云端模型：可切换的 OpenAI 兼容对话模型（Qwen / DeepSeek）、百炼 `text-embedding-v2`、`qwen3-rerank`
 - 前端：原生 HTML、CSS、JavaScript
 - 部署：Docker、Render、GitHub
 
@@ -159,7 +173,7 @@ uvicorn app.main:app --reload
 | `POST /documents/chunks` | 查看文本切分结果 |
 | `POST /documents/index` | 上传并建立知识库索引 |
 | `GET /search?query=...&knowledge_base_id=...` | 检索相关文本段落；知识库 ID 可省略 |
-| `POST /ask` | 基于知识库回答问题、精排并返回编号来源 |
+| `POST /ask` | 由 Agent 调用工具完成问答，返回编号来源与工具调用记录 |
 | `DELETE /knowledge-base` | 清空当前知识库 |
 
 ## 检索效果评估
@@ -180,7 +194,7 @@ uvicorn app.main:app --reload
 
 ## 测试与 CI
 
-项目目前包含 59 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
+项目目前包含 63 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -q

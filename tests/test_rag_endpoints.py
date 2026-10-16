@@ -9,6 +9,7 @@ from fastapi import HTTPException, UploadFile
 
 import app.main as main
 from app.settings import AppSettings
+from app.agent_service import AgentResponse
 from app.knowledge_base_repository import KnowledgeBase
 from app.text_chunker import DocumentChunk
 from app.vector_store import VectorStore
@@ -91,19 +92,24 @@ class RagEndpointTests(unittest.TestCase):
             [[1.0, 0.0]],
         )
 
+        def run_agent_with_search(_question, _settings, search_knowledge, _read_source):
+            search_knowledge("校园网络怎么报修？", 3)
+            return AgentResponse("请联系信息中心报修校园网络。[1]", ["search_knowledge"])
+
         with (
             patch("app.main.load_embedding_settings"),
             patch("app.main.load_chat_settings"),
             patch("app.main.load_rerank_settings"),
             patch("app.main.embed_texts", return_value=[[0.9, 0.1]]),
             patch("app.main.rerank_results", side_effect=lambda _q, results, _s, _limit: results),
-            patch("app.main.answer_from_context", return_value="请联系信息中心报修校园网络。"),
+            patch("app.main.run_agent", side_effect=run_agent_with_search),
         ):
             result = main.ask_question(main.AskRequest(question="校园网络怎么报修？"))
 
-        self.assertEqual(result["answer"], "请联系信息中心报修校园网络。")
+        self.assertEqual(result["answer"], "请联系信息中心报修校园网络。[1]")
         self.assertEqual(result["sources"][0]["source_file"], "network.txt")
         self.assertEqual(result["sources"][0]["citation_index"], 1)
+        self.assertEqual(result["tool_calls"], ["search_knowledge"])
 
     def test_rejects_file_larger_than_server_limit(self) -> None:
         main.runtime_settings = AppSettings(False, "公开演示知识库", 3, 200, 1000, 32)

@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pathlib import Path
 
-from app.chat_client import ChatError, answer_from_context
+from app.agent_service import AgentError, run_agent
 from app.document_reader import DocumentReadError, read_text_document
 from app.embedding_client import EmbeddingError, embed_texts
 from app.knowledge_base_repository import (
@@ -28,7 +28,6 @@ from app.vector_store import SearchResult, VectorStore, VectorStoreError
 app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
 FAISS_CANDIDATE_LIMIT = 10
-RERANK_RESULT_LIMIT = 3
 vector_store: VectorStore | None = None
 cloud_repository: SupabaseKnowledgeBaseRepository | None = None
 active_knowledge_base_id: int | None = None
@@ -379,43 +378,70 @@ def serialize_search_result(
     return serialized
 
 
-@app.post("/ask")
-def ask_question(request: AskRequest) -> dict:
-    """检索相关资料后，调用对话模型生成带来源的回答。"""
-    validate_question(request.question)
-    store = resolve_vector_store(request.knowledge_base_id)
+def retrieve_reranked_results(
+    query: str, knowledge_base_id: int | None, limit: int
+) -> list[SearchResult]:
+    """供 Agent 工具调用：向量召回后再重排序，返回最终来源。"""
+    validate_question(query)
+    store = resolve_vector_store(knowledge_base_id)
     if store is None:
         raise HTTPException(status_code=400, detail="尚未建立知识库索引")
 
+    query_vector = embed_texts(
+        [query], load_embedding_settings(), runtime_settings.embedding_batch_size
+    )[0]
+    candidates = store.search(query_vector, min(FAISS_CANDIDATE_LIMIT, store.count))
+    return rerank_results(query, candidates, load_rerank_settings(), min(limit, len(candidates)))
+
+
+@app.post("/ask")
+def ask_question(request: AskRequest) -> dict:
+    """让 Agent 按需调用知识库、来源阅读或计算工具后生成回答。"""
+    validate_question(request.question)
+    results: list[SearchResult] = []
+
+    def search_knowledge(query: str, limit: int) -> dict:
+        """Agent 检索工具：只把重排序后的来源交给模型。"""
+        nonlocal results
+        results = retrieve_reranked_results(query, request.knowledge_base_id, limit)
+        return {
+            "sources": [
+                serialize_search_result(result, citation_index)
+                for citation_index, result in enumerate(results, start=1)
+            ]
+        }
+
+    def read_source(citation_index: int) -> dict:
+        """Agent 来源工具：仅允许读取本轮已检索出的资料。"""
+        if citation_index > len(results):
+            raise AgentError("该来源编号不存在，请先检索知识库")
+        return serialize_search_result(results[citation_index - 1], citation_index)
+
     try:
-        query_vector = embed_texts(
-            [request.question], load_embedding_settings(), runtime_settings.embedding_batch_size
-        )[0]
-        candidates = store.search(query_vector, min(FAISS_CANDIDATE_LIMIT, store.count))
-        results = rerank_results(
+        agent_response = run_agent(
             request.question,
-            candidates,
-            load_rerank_settings(),
-            min(RERANK_RESULT_LIMIT, len(candidates)),
+            load_chat_settings(),
+            search_knowledge,
+            read_source,
         )
-        answer = answer_from_context(request.question, results, load_chat_settings())
     except SettingsError as error:
         raise HTTPException(status_code=500, detail="云端模型配置不完整") from error
     except EmbeddingError as error:
         raise HTTPException(status_code=502, detail="云端向量服务调用失败") from error
     except RerankError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
-    except ChatError as error:
+    except AgentError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     except VectorStoreError as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
 
     return {
-        "answer": answer,
+        "answer": agent_response.answer,
         "sources": [
             serialize_search_result(result, citation_index)
             for citation_index, result in enumerate(results, start=1)
         ],
+        "tool_calls": agent_response.tool_calls,
     }
 
 
