@@ -175,6 +175,8 @@ EMBEDDING_BATCH_SIZE=32
 
 公开模式下，服务器会拒绝创建、切换、上传、预览、切分、索引和清空接口，访客无法修改 Supabase 中的公共资料。
 
+启用新版本前，还必须在同一个 Supabase 项目的 SQL Editor 中执行一次 [`supabase/demo-quota.sql`](supabase/demo-quota.sql)。这会新增独立的每日用量表与原子计数函数，不修改现有知识库表。公开 Demo 全体访客共享北京时间每天 **100 次问答/检索**和 **100 次天气工具调用**；天气问题同时占用问答额度。额度用尽返回 429，用量数据库不可用时返回 503 并停止继续调用收费服务。本地非公开模式不受限制。由于目前没有用户登录，这不是按访客分配的额度，也不是和风天气账号级硬限额；其他项目使用同一账号产生的请求仍需在官方控制台查看。
+
 ### 5. 启动服务
 
 ```powershell
@@ -217,7 +219,7 @@ uvicorn app.main:app --reload
 
 ## 测试与 CI
 
-项目目前包含 72 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
+项目目前包含 79 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -q
@@ -246,7 +248,7 @@ GitHub Actions 会在每次推送与 Pull Request 时，使用 Python 3.13 安�
 2. 连接 GitHub 仓库 `zh-qq/rag-knowledge-base`。
 3. 在 Render 的 Environment 页面填写 `CHAT_API_KEY`、`CHAT_BASE_URL`、`CHAT_MODEL`、`DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`DASHSCOPE_RERANK_BASE_URL` 与 `RERANK_MODEL`。天气工具另需 `QWEATHER_API_KEY` 和 `QWEATHER_API_HOST`。
 4. 保持免费计划，创建服务后等待构建完成。
-5. 启用 Supabase 时，设置 `SUPABASE_URL` 和 `SUPABASE_SECRET_KEY`；公开上线前按“公开 Demo 配置”填写只读模式变量。
+5. 启用 Supabase 时，设置 `SUPABASE_URL` 和 `SUPABASE_SECRET_KEY`；公开上线前按“公开 Demo 配置”执行用量 SQL 并填写只读模式变量。必须先执行 SQL，再发布包含限额代码的版本。
 
 ## 当前限制
 

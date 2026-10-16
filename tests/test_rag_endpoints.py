@@ -143,6 +143,85 @@ class RagEndpointTests(unittest.TestCase):
         self.assertEqual(result["sources"], [])
         current_weather.assert_called_once_with("黄山市", weather_settings)
 
+    def test_public_demo_reserves_query_quota_before_agent_call(self) -> None:
+        main.runtime_settings = AppSettings(True, "公开演示知识库", 2 * 1024 * 1024, 200, 1000, 32)
+        repository = MagicMock()
+        repository.reserve_demo_quota.return_value = True
+        main.cloud_repository = repository
+
+        with (
+            patch("app.main.load_chat_settings"),
+            patch("app.main.run_agent", return_value=AgentResponse("回答", ["calculate"])),
+        ):
+            result = main.ask_question(main.AskRequest(question="1+1是多少？"))
+
+        self.assertEqual(result["answer"], "回答")
+        repository.reserve_demo_quota.assert_called_once_with("query")
+
+    def test_public_demo_rejects_query_when_quota_exhausted(self) -> None:
+        main.runtime_settings = AppSettings(True, "公开演示知识库", 2 * 1024 * 1024, 200, 1000, 32)
+        repository = MagicMock()
+        repository.reserve_demo_quota.return_value = False
+        main.cloud_repository = repository
+
+        with (
+            patch("app.main.run_agent") as run_agent,
+            self.assertRaises(HTTPException) as raised,
+        ):
+            main.ask_question(main.AskRequest(question="今天开馆吗？"))
+
+        self.assertEqual(raised.exception.status_code, 429)
+        run_agent.assert_not_called()
+
+    def test_public_demo_rejects_search_before_embedding_when_quota_exhausted(self) -> None:
+        main.runtime_settings = AppSettings(True, "公开演示知识库", 2 * 1024 * 1024, 200, 1000, 32)
+        main.vector_store = VectorStore(dimension=2)
+        main.vector_store.add([DocumentChunk("guide.md", 0, "校园指南")], [[1.0, 0.0]])
+        main.cloud_repository = MagicMock()
+        main.cloud_repository.reserve_demo_quota.return_value = False
+
+        with (
+            patch("app.main.resolve_vector_store", return_value=main.vector_store),
+            patch("app.main.embed_texts") as embed_texts,
+            self.assertRaises(HTTPException) as raised,
+        ):
+            main.search_documents("校园指南")
+
+        self.assertEqual(raised.exception.status_code, 429)
+        embed_texts.assert_not_called()
+
+    def test_public_demo_rejects_weather_when_weather_quota_exhausted(self) -> None:
+        main.runtime_settings = AppSettings(True, "公开演示知识库", 2 * 1024 * 1024, 200, 1000, 32)
+        repository = MagicMock()
+        repository.reserve_demo_quota.side_effect = [True, False]
+        main.cloud_repository = repository
+
+        def run_agent_with_weather(_question, _settings, _search, _read, _history, get_weather):
+            get_weather("黄山市")
+
+        with (
+            patch("app.main.load_chat_settings"),
+            patch("app.main.load_weather_settings"),
+            patch("app.main.get_current_weather") as current_weather,
+            patch("app.main.run_agent", side_effect=run_agent_with_weather),
+            self.assertRaises(HTTPException) as raised,
+        ):
+            main.ask_question(main.AskRequest(question="黄山市现在天气怎么样？"))
+
+        self.assertEqual(raised.exception.status_code, 429)
+        self.assertEqual(repository.reserve_demo_quota.call_args_list[1].args, ("weather",))
+        current_weather.assert_not_called()
+
+    def test_public_demo_stops_when_quota_database_is_unavailable(self) -> None:
+        main.runtime_settings = AppSettings(True, "公开演示知识库", 2 * 1024 * 1024, 200, 1000, 32)
+        main.cloud_repository = MagicMock()
+        main.cloud_repository.reserve_demo_quota.side_effect = main.KnowledgeBaseRepositoryError("offline")
+
+        with self.assertRaises(HTTPException) as raised:
+            main.ask_question(main.AskRequest(question="今天开馆吗？"))
+
+        self.assertEqual(raised.exception.status_code, 503)
+
     def test_rejects_unsafe_conversation_history(self) -> None:
         request = main.AskRequest(
             question="校园网络怎么报修？",

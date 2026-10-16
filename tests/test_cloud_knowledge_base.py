@@ -79,3 +79,16 @@ class CloudKnowledgeBaseTests(unittest.TestCase):
             self.repository.delete_knowledge_base(12)
 
         request.assert_called_once_with("DELETE", "knowledge_bases", {"id": "eq.12"})
+
+    def test_reserves_public_demo_quota_through_rpc(self) -> None:
+        with patch.object(self.repository, "_request", return_value=True) as request:
+            self.assertTrue(self.repository.reserve_demo_quota("query"))
+
+        request.assert_called_once_with(
+            "POST", "rpc/reserve_demo_quota", body={"p_scope": "query"}
+        )
+
+    def test_rejects_unexpected_quota_rpc_response(self) -> None:
+        with patch.object(self.repository, "_request", return_value=[]):
+            with self.assertRaisesRegex(Exception, "用量计数返回异常"):
+                self.repository.reserve_demo_quota("weather")

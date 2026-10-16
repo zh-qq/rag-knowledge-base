@@ -129,6 +129,16 @@ class SupabaseKnowledgeBaseRepository:
         """删除知识库记录；数据库外键会级联删除其中的文档和段落。"""
         self._request("DELETE", "knowledge_bases", {"id": f"eq.{knowledge_base_id}"})
 
+    def reserve_demo_quota(self, scope: str) -> bool:
+        """在 Supabase 中原子占用一份公开 Demo 的每日额度。"""
+        try:
+            result = self._request("POST", "rpc/reserve_demo_quota", body={"p_scope": scope})
+        except KnowledgeBaseRepositoryError as error:
+            raise KnowledgeBaseRepositoryError("公开演示用量计数失败，请检查数据库限额配置") from error
+        if not isinstance(result, bool):
+            raise KnowledgeBaseRepositoryError("公开演示用量计数返回异常")
+        return result
+
     def _request(
         self,
         method: str,
@@ -136,7 +146,7 @@ class SupabaseKnowledgeBaseRepository:
         query: dict[str, str] | None = None,
         body: dict[str, Any] | list[dict[str, Any]] | None = None,
         prefer: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> Any:
         url = f"{self._base_url}/{table}"
         if query:
             url += "?" + urlencode(query)

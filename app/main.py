@@ -356,6 +356,7 @@ def search_documents(query: str, limit: int = 3, knowledge_base_id: int | None =
     store = resolve_vector_store(knowledge_base_id)
     if store is None:
         raise HTTPException(status_code=400, detail="尚未建立知识库索引")
+    consume_demo_quota("query")
 
     try:
         vectors = embed_texts([query], load_embedding_settings(), runtime_settings.embedding_batch_size)
@@ -408,6 +409,7 @@ def ask_question(request: AskRequest) -> dict:
     """让 Agent 按需调用知识库、来源阅读或计算工具后生成回答。"""
     validate_question(request.question)
     history = validate_conversation_history(request.history)
+    consume_demo_quota("query")
     results: list[SearchResult] = []
 
     def search_knowledge(query: str, limit: int) -> dict:
@@ -428,7 +430,9 @@ def ask_question(request: AskRequest) -> dict:
         return serialize_search_result(results[citation_index - 1], citation_index)
 
     def get_weather(location: str) -> dict:
-        return get_current_weather(location, load_weather_settings())
+        weather_settings = load_weather_settings()
+        consume_demo_quota("weather")
+        return get_current_weather(location, weather_settings)
 
     try:
         agent_response = run_agent(
@@ -490,6 +494,21 @@ def ensure_writable() -> None:
     """公开演示服务只允许读取，禁止任何改变知识库状态的请求。"""
     if runtime_settings.public_demo_mode:
         raise HTTPException(status_code=403, detail="公开 Demo 为只读模式，不能修改知识库")
+
+
+def consume_demo_quota(scope: str) -> None:
+    """公开模式在云端占用额度；计数不可用时停止收费接口。"""
+    if not runtime_settings.public_demo_mode:
+        return
+    if cloud_repository is None:
+        raise HTTPException(status_code=503, detail="公开演示用量计数不可用，请稍后再试")
+    try:
+        allowed = cloud_repository.reserve_demo_quota(scope)
+    except KnowledgeBaseRepositoryError as error:
+        raise HTTPException(status_code=503, detail="公开演示用量计数不可用，请稍后再试") from error
+    if not allowed:
+        label = "天气查询" if scope == "weather" else "问答与检索"
+        raise HTTPException(status_code=429, detail=f"今日{label}额度已用完，请明天再试")
 
 
 def ensure_non_blank_text(text: str) -> None:
