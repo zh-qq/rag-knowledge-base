@@ -25,6 +25,12 @@ let activeKnowledgeBaseId = null;
 let publicDemoMode = false;
 let protectedKnowledgeBaseName = "";
 
+const agentToolLabels = {
+  search_knowledge: "检索知识库",
+  read_source: "读取命中来源",
+  calculate: "计算表达式",
+};
+
 function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
@@ -226,10 +232,19 @@ function appendAnswer(question, payload) {
         <small>${escapeHtml(source.content.slice(0, 120))}${source.content.length > 120 ? "…" : ""}</small>
       </div>
     </div>`).join("");
+  const toolCalls = Array.isArray(payload.tool_calls) ? payload.tool_calls : [];
+  const trace = toolCalls.length ? `
+    <section class="agent-trace" aria-label="Agent 执行记录">
+      <h3>Agent 执行记录</h3>
+      <ol>${toolCalls.map((name, index) => `
+        <li><span>${index + 1}</span>${escapeHtml(agentToolLabels[name] || `调用工具：${name}`)}</li>`).join("")}</ol>
+    </section>` : "";
+  const sourceSection = sources ? `<section class="source-list"><h3>来源</h3>${sources}</section>` : "";
   answerNode.innerHTML = `
     <h2 class="answer-title">${icon("book")}<span>回答</span></h2>
     <div class="answer-content">${escapeHtml(payload.answer)}</div>
-    <section class="source-list"><h3>来源</h3>${sources}</section>`;
+    ${trace}
+    ${sourceSection}`;
 
   conversation.append(questionNode, answerNode);
   conversation.scrollTop = conversation.scrollHeight;

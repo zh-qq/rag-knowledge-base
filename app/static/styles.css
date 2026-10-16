@@ -99,6 +99,11 @@ button:disabled { cursor: not-allowed; }
 .answer-title { display: flex; align-items: center; gap: 9px; margin: 0 0 12px; color: var(--ink); font-size: 18px; font-weight: 720; }
 .answer-title svg { width: 21px; height: 21px; color: var(--accent); }
 .answer-content { color: #27445f; white-space: pre-wrap; font-size: 15px; line-height: 1.8; }
+.agent-trace { margin-top: 18px; padding: 14px 16px; border: 1px solid #d7e6fa; border-radius: 10px; background: #f5f9ff; }
+.agent-trace h3 { margin: 0 0 10px; color: #294e73; font-size: 14px; }
+.agent-trace ol { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.agent-trace li { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 999px; color: #38607d; background: #fff; font-size: 13px; }
+.agent-trace li span { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #fff; background: var(--accent); font-size: 11px; }
 .source-list { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
 .source-list h3 { margin: 0 0 10px; font-size: 14px; }
 .source-item { display: flex; align-items: center; gap: 10px; padding: 11px; border: 1px solid var(--border); border-radius: 10px; background: white; }
