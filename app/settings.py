@@ -96,19 +96,32 @@ def load_app_settings() -> AppSettings:
 
 
 def chat_settings_from_values(values: Mapping[str, str]) -> ChatSettings:
-    required_keys = {
-        "DASHSCOPE_API_KEY": "api_key",
-        "DASHSCOPE_BASE_URL": "base_url",
-        "CHAT_MODEL": "model",
-    }
-    missing_keys = [key for key in required_keys if not values.get(key, "").strip()]
+    """读取可切换的对话模型配置，并兼容旧版百炼变量。"""
+    api_key = values.get("CHAT_API_KEY", "").strip()
+    base_url = values.get("CHAT_BASE_URL", "").strip()
+    model = values.get("CHAT_MODEL", "").strip()
+
+    if bool(api_key) != bool(base_url):
+        raise SettingsError("CHAT_API_KEY 与 CHAT_BASE_URL 必须同时填写")
+
+    if not api_key:
+        api_key = values.get("DASHSCOPE_API_KEY", "").strip()
+        base_url = values.get("DASHSCOPE_BASE_URL", "").strip()
+
+    missing_keys = []
+    if not api_key:
+        missing_keys.append("CHAT_API_KEY")
+    if not base_url:
+        missing_keys.append("CHAT_BASE_URL")
+    if not model:
+        missing_keys.append("CHAT_MODEL")
     if missing_keys:
         raise SettingsError(f"缺少配置：{', '.join(missing_keys)}")
 
     return ChatSettings(
-        api_key=values["DASHSCOPE_API_KEY"].strip(),
-        base_url=values["DASHSCOPE_BASE_URL"].strip(),
-        model=values["CHAT_MODEL"].strip(),
+        api_key=api_key,
+        base_url=base_url,
+        model=model,
     )
 
 

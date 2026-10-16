@@ -9,6 +9,10 @@ services:
         sync: false
       - key: DASHSCOPE_BASE_URL
         sync: false
+      - key: CHAT_API_KEY
+        sync: false
+      - key: CHAT_BASE_URL
+        sync: false
       - key: EMBEDDING_MODEL
         sync: false
       - key: CHAT_MODEL

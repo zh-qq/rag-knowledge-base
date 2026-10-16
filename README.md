@@ -73,15 +73,42 @@ pip install -r requirements.txt
 将 `.env.example` 复制为 `.env`，然后填写以下值：
 
 ```text
+# 对话模型：可选择百炼或 DeepSeek。
+CHAT_API_KEY=<你的对话模型 API Key>
+CHAT_BASE_URL=<你的对话模型兼容接口地址>
+CHAT_MODEL=qwen-plus
+
+# 向量化与重排序：当前使用百炼。
 DASHSCOPE_API_KEY=<你的百炼 API Key>
 DASHSCOPE_BASE_URL=<你的百炼兼容接口地址>
 EMBEDDING_MODEL=text-embedding-v2
-CHAT_MODEL=qwen-plus
 DASHSCOPE_RERANK_BASE_URL=https://<你的业务空间>.cn-beijing.maas.aliyuncs.com/compatible-api/v1
 RERANK_MODEL=qwen3-rerank
 ```
 
 `.env` 已被 Git 忽略，禁止提交或分享。
+
+#### 切换对话模型
+
+对话模型通过 `CHAT_API_KEY`、`CHAT_BASE_URL` 与 `CHAT_MODEL` 配置；向量化和重排序仍使用百炼，因此切换对话模型不会影响现有 FAISS、Embedding 和 Rerank 流程。
+
+使用百炼 Qwen 时，填写：
+
+```text
+CHAT_API_KEY=<你的百炼 API Key>
+CHAT_BASE_URL=https://<你的业务空间>.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+CHAT_MODEL=qwen-plus
+```
+
+使用 DeepSeek 时，填写：
+
+```text
+CHAT_API_KEY=<你的 DeepSeek API Key>
+CHAT_BASE_URL=https://api.deepseek.com
+CHAT_MODEL=deepseek-flash
+```
+
+旧版 `DASHSCOPE_API_KEY` 与 `DASHSCOPE_BASE_URL` 仍可作为对话模型配置的兼容回退。新项目应优先使用 `CHAT_*` 变量。切换后重启本地服务；Render 则在 Environment 页面更新同名变量并等待自动部署。
 
 ### 3. 可选：启用 Supabase 云端知识库
 
@@ -153,7 +180,7 @@ uvicorn app.main:app --reload
 
 ## 测试与 CI
 
-项目目前包含 52 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
+项目目前包含 59 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -q
@@ -180,7 +207,7 @@ GitHub Actions 会在每次推送与 Pull Request 时，使用 Python 3.13 安�
 
 1. 登录 [Render Blueprints](https://dashboard.render.com/blueprints)。
 2. 连接 GitHub 仓库 `zh-qq/rag-knowledge-base`。
-3. Render 会提示填写 `DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`CHAT_MODEL`、`DASHSCOPE_RERANK_BASE_URL` 与 `RERANK_MODEL`。
+3. 在 Render 的 Environment 页面填写 `CHAT_API_KEY`、`CHAT_BASE_URL`、`CHAT_MODEL`、`DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL`、`EMBEDDING_MODEL`、`DASHSCOPE_RERANK_BASE_URL` 与 `RERANK_MODEL`。
 4. 保持免费计划，创建服务后等待构建完成。
 5. 启用 Supabase 时，设置 `SUPABASE_URL` 和 `SUPABASE_SECRET_KEY`；公开上线前按“公开 Demo 配置”填写只读模式变量。
 
