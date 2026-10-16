@@ -1,7 +1,7 @@
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pathlib import Path
 
 from app.agent_service import AgentError, run_agent
@@ -28,6 +28,7 @@ from app.vector_store import SearchResult, VectorStore, VectorStoreError
 app = FastAPI(title="RAG 知识库问答系统")
 PREVIEW_LENGTH = 500
 FAISS_CANDIDATE_LIMIT = 10
+MAX_CONVERSATION_HISTORY = 6
 vector_store: VectorStore | None = None
 cloud_repository: SupabaseKnowledgeBaseRepository | None = None
 active_knowledge_base_id: int | None = None
@@ -39,9 +40,15 @@ METADATA_PATH = DATA_DIR / "chunks.json"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+class ConversationMessage(BaseModel):
+    role: str
+    content: str
+
+
 class AskRequest(BaseModel):
     question: str
     knowledge_base_id: int | None = None
+    history: list[ConversationMessage] = Field(default_factory=list)
 
 
 @app.on_event("startup")
@@ -398,6 +405,7 @@ def retrieve_reranked_results(
 def ask_question(request: AskRequest) -> dict:
     """让 Agent 按需调用知识库、来源阅读或计算工具后生成回答。"""
     validate_question(request.question)
+    history = validate_conversation_history(request.history)
     results: list[SearchResult] = []
 
     def search_knowledge(query: str, limit: int) -> dict:
@@ -423,6 +431,7 @@ def ask_question(request: AskRequest) -> dict:
             load_chat_settings(),
             search_knowledge,
             read_source,
+            history,
         )
     except SettingsError as error:
         raise HTTPException(status_code=500, detail="云端模型配置不完整") from error
@@ -443,6 +452,30 @@ def ask_question(request: AskRequest) -> dict:
         ],
         "tool_calls": agent_response.tool_calls,
     }
+
+
+def validate_conversation_history(history: list[ConversationMessage]) -> list[dict[str, str]]:
+    """只接受最近的用户与助手文本，禁止客户端伪造 system 或 tool 消息。"""
+    if len(history) > MAX_CONVERSATION_HISTORY:
+        raise HTTPException(
+            status_code=400,
+            detail=f"对话上下文最多保留 {MAX_CONVERSATION_HISTORY} 条消息",
+        )
+
+    messages = []
+    for message in history:
+        content = message.content.strip()
+        if message.role not in {"user", "assistant"}:
+            raise HTTPException(status_code=400, detail="对话上下文角色只能是 user 或 assistant")
+        if not content:
+            raise HTTPException(status_code=400, detail="对话上下文内容不能为空")
+        if len(content) > runtime_settings.max_question_length:
+            raise HTTPException(
+                status_code=400,
+                detail=f"对话上下文单条消息不能超过 {runtime_settings.max_question_length} 个字符",
+            )
+        messages.append({"role": message.role, "content": content})
+    return messages
 
 
 def ensure_writable() -> None:

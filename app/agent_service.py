@@ -83,6 +83,7 @@ def run_agent(
     settings: ChatSettings,
     search_knowledge: SearchKnowledge,
     read_source: ReadSource,
+    history: list[dict[str, str]] | None = None,
 ) -> AgentResponse:
     """让模型在受控工具之间循环，直到生成最终中文回答。"""
     if not question.strip():
@@ -98,8 +99,9 @@ def run_agent(
                 "引用知识库事实时标注对应编号，例如 [1]。"
             ),
         },
-        {"role": "user", "content": question},
     ]
+    messages.extend(history or [])
+    messages.append({"role": "user", "content": question})
     tool_calls: list[str] = []
 
     try:

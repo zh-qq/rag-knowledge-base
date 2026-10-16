@@ -39,11 +39,23 @@ class AgentServiceTests(unittest.TestCase):
                 first_response,
                 final_response,
             ]
-            result = run_agent("图书馆几点关门？", self.settings, search_knowledge, Mock())
+            result = run_agent(
+                "图书馆几点关门？",
+                self.settings,
+                search_knowledge,
+                Mock(),
+                [
+                    {"role": "user", "content": "我想了解图书馆。"},
+                    {"role": "assistant", "content": "可以，请告诉我具体问题。"},
+                ],
+            )
 
         self.assertEqual(result.answer, "图书馆晚上十点关闭。[1]")
         self.assertEqual(result.tool_calls, ["search_knowledge"])
         search_knowledge.assert_called_once_with("图书馆几点关门？", 3)
+        first_request = openai_client.return_value.chat.completions.create.call_args_list[0].kwargs
+        self.assertEqual(first_request["messages"][1]["content"], "我想了解图书馆。")
+        self.assertEqual(first_request["messages"][2]["role"], "assistant")
         second_request = openai_client.return_value.chat.completions.create.call_args_list[1].kwargs
         self.assertEqual(second_request["messages"][-1]["role"], "tool")
         self.assertIn("guide.md", second_request["messages"][-1]["content"])

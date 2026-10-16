@@ -24,6 +24,7 @@ let cloudMode = false;
 let activeKnowledgeBaseId = null;
 let publicDemoMode = false;
 let protectedKnowledgeBaseName = "";
+let conversationHistory = [];
 
 const agentToolLabels = {
   search_knowledge: "检索知识库",
@@ -68,6 +69,7 @@ function resetSelectedFile() {
 }
 
 function resetConversation() {
+  conversationHistory = [];
   conversation.replaceChildren();
   const emptyState = document.createElement("div");
   emptyState.className = "empty-conversation";
@@ -103,6 +105,7 @@ async function activateKnowledgeBase(id, showMessage = true) {
     activeKnowledgeBaseId = Number(payload.id);
     knowledgeBaseSelect.value = String(activeKnowledgeBaseId);
     setQuestionAvailability(payload.indexed_chunk_count > 0);
+    resetConversation();
     updateIndexButton();
     updateDeleteKnowledgeBaseButton();
     if (showMessage) showIndexResult(`已切换知识库，当前共有 ${payload.indexed_chunk_count} 个段落。`);
@@ -357,11 +360,16 @@ questionForm.addEventListener("submit", async (event) => {
     const response = await fetch("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, limit: 3 }),
+      body: JSON.stringify({ question, history: conversationHistory }),
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.detail || "问答失败");
     appendAnswer(question, payload);
+    conversationHistory = [
+      ...conversationHistory,
+      { role: "user", content: question },
+      { role: "assistant", content: payload.answer },
+    ].slice(-6);
     questionInput.value = "";
   } catch (error) {
     appendError(error.message || "问答失败，请稍后重试。");

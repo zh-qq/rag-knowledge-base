@@ -62,6 +62,8 @@ flowchart LR
 
 以后接入新工具时，按以下顺序操作：定义清晰的输入参数 → 编写只完成一件事的 Python 函数 → 在 `app/agent_service.py` 注册工具描述和服务端参数校验 → 在 `app/main.py` 提供数据或业务回调 → 为正常和异常输入补充离线测试。不要让模型直接访问数据库、文件系统或密钥。
 
+网页会在当前浏览器会话中保留最近 3 轮问答，用于理解连续追问；刷新页面、切换、清空或删除知识库后会自动清除。这些短期上下文不会写入 Supabase，也不提供跨设备的对话记录。
+
 ## 技术栈
 
 - 后端：Python、FastAPI、Uvicorn
@@ -194,7 +196,7 @@ uvicorn app.main:app --reload
 
 ## 测试与 CI
 
-项目目前包含 63 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
+项目目前包含 64 项离线单元测试，测试不会发送真实文档或密钥。运行命令：
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -q
